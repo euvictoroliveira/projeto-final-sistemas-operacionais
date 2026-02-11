@@ -1,5 +1,5 @@
 megs:            32
-display_library: term
+display_library: sdl2
 speaker: enabled=0
 sound: driver=dummy
 romimage:        file=/usr/share/bochs/BIOS-bochs-latest
