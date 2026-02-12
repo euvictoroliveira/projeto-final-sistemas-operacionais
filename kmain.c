@@ -1,4 +1,4 @@
-/* kmain.c */
+/* kmain.c */N
 
 #define FB_GREEN     2
 #define FB_DARK_GREY 8
@@ -7,6 +7,7 @@
 #define FB_HIGH_BYTE_COMMAND   14
 #define FB_LOW_BYTE_COMMAND    15
 
+void gdt_init();
 
 /* Declaração da função que está no io.s */
 void outb(unsigned short port, unsigned char data);
@@ -60,10 +61,28 @@ void fb_move_cursor(unsigned short pos)
     outb(FB_DATA_PORT,    (pos & 0x00FF));
 }
 
+/** serial_configure_baud_rate:
+ * Define a velocidade da porta serial.
+ *
+ */
+void serial_configure_baud_rate(unsigned short com, unsigned short divisor) {
+    /* Avisa a porta que vamos enviar o divisor (DLAB = 1) */
+    outb(com + 3, 0x80); 
+    /* Envia a parte baixa e depois a alta do divisor */
+    outb(com + 0, (divisor >> 8) & 0x00FF);
+    outb(com + 1, divisor & 0x00FF);
+}
+
 /*função principal que coordena o kernel */
 void kmain()
 {
-    
+
+    // 1. CONFIGURA O SERIAL PRIMEIRO (Use a função que você criou no Cap 4)
+    serial_configure_baud_rate(SERIAL_COM1_BASE, 3); // 38400 bits/s
+    serial_configure_line_control(SERIAL_COM1_BASE);
+
+    gdt_init(); // Inicializa a GDT
+
     fb_write_cell(0, 'B', FB_GREEN, FB_DARK_GREY);
     fb_move_cursor(1);
 
