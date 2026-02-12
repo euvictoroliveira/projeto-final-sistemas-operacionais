@@ -52,10 +52,21 @@ void serial_write(unsigned short com, char *buf, unsigned int len) {
     for (i = 0; i < len; i++) {
         /* Espera o FIFO de transmissão ficar vazio antes de enviar o próximo byte */
         while (!serial_is_transmit_fifo_empty(com));
-        
+
         /* Envia o caractere para a porta de dados */
         outb(com, buf[i]);
     }
+}
+
+void fb_write(char *buf, unsigned int len){
+    unsigned int i;
+
+    for(i = 0; i < len; i++) {
+        fb_write_cell(i * 2, buf[i], 2, 8); 
+    }
+
+    /* Opcional: Move o cursor para o final da frase */
+    fb_move_cursor(len);
 }
 
 void fb_move_cursor(unsigned short pos)
@@ -97,8 +108,10 @@ void kmain()
 
     gdt_init(); // Inicializa a GDT
 
-    fb_write_cell(0, 'B', FB_GREEN, FB_DARK_GREY);
-    fb_move_cursor(1);
+    char *msg = "Hello World!";
+    fb_write(msg, 12);
+
+    serial_write(0x3F8, "Mensagem exibida no framebuffer!\n", 33);
 
     /* Loop infinito para o kernel não encerrar */
     while(1) {
