@@ -1,26 +1,45 @@
 /* kmain.c */
 
-/* 1. Adicione a Struct aqui no topo. 
-   O hardware exige posições exatas de bits, por isso o 'packed'. */
-struct example {
-    unsigned char config;      /* bit 0 - 7   */
-    unsigned short address;    /* bit 8 - 23  */
-    unsigned char index;       /* bit 24 - 31 */
-} __attribute__((packed));
+#define FB_GREEN     2
+#define FB_DARK_GREY 8
+#define FB_COMMAND_PORT        0x3D4
+#define FB_DATA_PORT           0x3D5
+#define FB_HIGH_BYTE_COMMAND   14
+#define FB_LOW_BYTE_COMMAND    15
 
-/* 2. Mantenha sua função de teste do Capítulo 3 */
-int sum_of_three(int arg1, int arg2, int arg3)
+/* Endereço inicial da memória de vídeo para o framebuffer */
+char *fb = (char *) 0x000B8000;
+
+/** fb_write_cell:
+ * Escreve um caractere com as cores de frente e fundo em uma posição i.
+ *
+ */
+void fb_write_cell(unsigned int i, char c, unsigned char fg, unsigned char bg)
 {
-    return arg1 + arg2 + arg3;
+    fb[i] = c;
+    fb[i + 1] = ((fg & 0x0F) << 4) | (bg & 0x0F);
 }
 
-/* 3. Função principal que coordena o kernel */
+/* Declaração da função que está no io.s */
+void outb(unsigned short port, unsigned char data);
+
+void fb_move_cursor(unsigned short pos)
+{
+    outb(FB_COMMAND_PORT, FB_HIGH_BYTE_COMMAND);
+    outb(FB_DATA_PORT,    ((pos >> 8) & 0x00FF));
+    outb(FB_COMMAND_PORT, FB_LOW_BYTE_COMMAND);
+    outb(FB_DATA_PORT,    (pos & 0x00FF));
+}
+
+/*função principal que coordena o kernel */
 void kmain()
 {
-    /* Exemplo de uso da struct empacotada */
-    struct example extreme_config;
-    extreme_config.config = 0x1;
     
-    /* Chamada que você já configurou no loader.s */
-    sum_of_three(1, 2, 3);
+    fb_write_cell(0, 'A', FB_GREEN, FB_DARK_GREY);
+    fb_move_cursor(1);
+
+    /* Loop infinito para o kernel não encerrar */
+    while(1) {
+        // O kernel fica parado aqui, mantendo a tela ativa
+    }
 }
