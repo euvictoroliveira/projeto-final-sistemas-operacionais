@@ -1,4 +1,4 @@
-/* kmain.c */N
+/* kmain.c */
 
 #define FB_GREEN     2
 #define FB_DARK_GREY 8
@@ -6,11 +6,16 @@
 #define FB_DATA_PORT           0x3D5
 #define FB_HIGH_BYTE_COMMAND   14
 #define FB_LOW_BYTE_COMMAND    15
+#define SERIAL_COM1_BASE 0x3F8
 
 void gdt_init();
 
 /* Declaração da função que está no io.s */
 void outb(unsigned short port, unsigned char data);
+
+/* Declarações das funções de configuração serial */
+void serial_configure_baud_rate(unsigned short com, unsigned short divisor);
+void serial_configure_line_control(unsigned short com);
 
 /* Declaração da função assembly definida no io.s */
 unsigned char inb(unsigned short port);
@@ -71,6 +76,15 @@ void serial_configure_baud_rate(unsigned short com, unsigned short divisor) {
     /* Envia a parte baixa e depois a alta do divisor */
     outb(com + 0, (divisor >> 8) & 0x00FF);
     outb(com + 1, divisor & 0x00FF);
+}
+
+/** serial_configure_line_control:
+ * Configura o formato dos dados na linha serial.
+ *
+ */
+void serial_configure_line_control(unsigned short com) {
+    /* 0x03 = 8 bits de dados, sem paridade, 1 bit de parada */
+    outb(com + 3, 0x03);
 }
 
 /*função principal que coordena o kernel */
