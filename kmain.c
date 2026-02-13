@@ -108,6 +108,7 @@ void kmain()
 
     gdt_init(); // Inicializa a GDT
 
+    /* Mensagem do Display */
     char *msg = "Hello World!";
     fb_write(msg, 12);
 
