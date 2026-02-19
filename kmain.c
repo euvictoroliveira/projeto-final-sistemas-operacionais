@@ -13,12 +13,13 @@ void gdt_init();
 /* Declaração da função que está no io.s */
 void outb(unsigned short port, unsigned char data);
 
+/* Declaração da função assembly definida no io.s */
+unsigned char inb(unsigned short port);
+
+
 /* Declarações das funções de configuração serial */
 void serial_configure_baud_rate(unsigned short com, unsigned short divisor);
 void serial_configure_line_control(unsigned short com);
-
-/* Declaração da função assembly definida no io.s */
-unsigned char inb(unsigned short port);
 
 /* Endereço inicial da memória de vídeo para o framebuffer */
 char *fb = (char *) 0x000B8000;
@@ -58,6 +59,17 @@ void serial_write(unsigned short com, char *buf, unsigned int len) {
     }
 }
 
+
+
+void fb_move_cursor(unsigned short pos)
+{
+    outb(FB_DATA_PORT,    ((pos >> 8) & 0x00FF));
+    outb(FB_COMMAND_PORT, FB_LOW_BYTE_COMMAND);
+    outb(FB_DATA_PORT,    (pos & 0x00FF));
+}
+
+
+
 void fb_write(char *buf, unsigned int len){
     unsigned int i;
 
@@ -67,14 +79,6 @@ void fb_write(char *buf, unsigned int len){
 
     /* Opcional: Move o cursor para o final da frase */
     fb_move_cursor(len);
-}
-
-void fb_move_cursor(unsigned short pos)
-{
-    outb(FB_COMMAND_PORT, FB_HIGH_BYTE_COMMAND);
-    outb(FB_DATA_PORT,    ((pos >> 8) & 0x00FF));
-    outb(FB_COMMAND_PORT, FB_LOW_BYTE_COMMAND);
-    outb(FB_DATA_PORT,    (pos & 0x00FF));
 }
 
 /** serial_configure_baud_rate:
@@ -108,10 +112,19 @@ void kmain()
 
     gdt_init(); // Inicializa a GDT
 
-    char *msg = "Hello World!";
-    fb_write(msg, 12);
+    // 2. Inicializa as interrupções
+    idt_init();
 
-    serial_write(0x3F8, "Mensagem exibida no framebuffer!\n", 33);
+
+    // Instrução Assembly para dizer à CPU: "Pode aceitar interrupções agora"
+    __asm__ __volatile__("sti");
+
+    serial_write(0x3F8, "Kernel pronto e ouvindo o teclado...\n", 37);
+
+    // 3. Agora o kernel está pronto para ouvir o hardware
+    char *msg = "Sistema de Interrupcoes Ativo!";
+    fb_write(msg, 30);
+
 
     /* Loop infinito para o kernel não encerrar */
     while(1) {
