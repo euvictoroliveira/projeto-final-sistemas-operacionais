@@ -14,6 +14,7 @@ void kmain() {
     /* 3. Inicializa as Interrupções (IDT) */
     idt_init();
 
+
     /* 4. Habilita as Interrupções Globais na CPU */
     __asm__ __volatile__("sti");
 
