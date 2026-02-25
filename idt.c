@@ -33,9 +33,9 @@ void pic_remap() {
     outb(PIC1_DATA, 0x01);
     outb(PIC2_DATA, 0x01);
 
-    // Ativa todas as interrupções (máscara zero)
-    outb(PIC1_DATA, 0x00);
-    outb(PIC2_DATA, 0x00);
+    /* Ativa APENAS o teclado (IRQ1). Silencia o Timer e os outros para não travar o kernel */
+    outb(PIC1_DATA, 0xFD); /* 0xFD é 1111 1101 em binário (só o teclado passa) */
+    outb(PIC2_DATA, 0xFF); /* 0xFF é 1111 1111 em binário (silencia o PIC2 inteiro) */
 }
 
 

@@ -2,6 +2,7 @@
 #include "idt.h"    /* Para usar as definições do PIC (PIC1_PORT_A, etc.) */
 #include "io.h"     /* Para usar o inb() e outb() */
 #include "serial.h" /* Para usar o serial_write() */
+#include "keyboard.h"
 
 void pic_acknowledge(unsigned int interrupt) {
     /* Ignora se for interrupção da CPU (menor que 32) ou fora do intervalo */
@@ -17,15 +18,15 @@ void pic_acknowledge(unsigned int interrupt) {
     }
 }
 
-void interrupt_handler(struct cpu_state cpu, struct stack_state stack, unsigned int interrupt) {
+void interrupt_handler(struct cpu_state cpu,  unsigned int interrupt, struct stack_state stack) {
     switch (interrupt) {
         case 0:
             serial_write(SERIAL_COM1_BASE, "ERRO: Divisao por Zero!\n", 24);
             break;
 
         case 33: { /* Teclado */
-            unsigned char scancode = inb(0x60);
-            serial_write(SERIAL_COM1_BASE, "Tecla Pressionada!\n", 19);
+	    /* Chamamos o nosso módulo para ler e traduzir a tecla */
+            keyboard_handle_scancode();
             break;
         }
 
