@@ -1,45 +1,38 @@
-extern void gdt_load(unsigned int gdt_ptr_addr);
+/* gdt.c */
+#include "gdt.h"
+#include "serial.h"
 
-struct gdt_ptr {
-    unsigned short size;    // Tamanho da GDT - 1
-    unsigned int address;   // Endereço onde a GDT está
-} __attribute__((packed));
+/* VARIÁVEIS GLOBAIS */
 
 /* Aqui seria array de descritores */
-unsigned long long gdt_entries[3] __attribute__((aligned(16)));
+struct gdt_entry gdt_entries[3];
+struct gdt_ptr gp;
 
 
 /** gdt_set_gate:
  * Preenche um descritor de segmento de 8 bytes (64 bits).
  *
  */
-void gdt_set_gate(int num, unsigned int base, unsigned int limit, unsigned char access, unsigned char gran)
-{
-    gdt_entries[num] = 0; // Limpa o descritor antes de preencher
+void gdt_set_gate(int num, unsigned int base, unsigned int limit, unsigned char access, unsigned char gran) {
+    /* Configura as partes da base */
+    gdt_entries[num].base_low = (base & 0xFFFF);
+    gdt_entries[num].base_middle = (base >> 16) & 0xFF;
+    gdt_entries[num].base_high = (base >> 24) & 0xFF;
 
-    // Configura o limite (primeiros 16 bits)
-    gdt_entries[num] |= (limit & 0xFFFF);
+    /* Configura o limite e a granularidade */
+    gdt_entries[num].limit_low = (limit & 0xFFFF);
+    gdt_entries[num].granularity = ((limit >> 16) & 0x0F) | (gran & 0xF0);
 
-    // Configura a base (bits 16-31, 32-39 e 56-63)
-    gdt_entries[num] |= (base & 0xFFFF) << 16;
-    gdt_entries[num] |= (unsigned long long)(base & 0xFF0000) << 16;
-    gdt_entries[num] |= (unsigned long long)(base & 0xFF000000) << 32;
-
-    // Configura os direitos de acesso (bits 40-47)
-    gdt_entries[num] |= (unsigned long long)access << 40;
-
-    // Configura a granularidade e o restante do limite (bits 48-55)
-    gdt_entries[num] |= (unsigned long long)(gran | (limit >> 16 & 0x0F)) << 48;
+    /* Configura o byte de acesso */
+    gdt_entries[num].access = access;
 }
-
-struct gdt_ptr gp;
 
 void gdt_init() {
 
     serial_write(0x3F8, "Iniciando GDT...\n", 17);
 
     /* Configuração simplificada da GDT (Flat Model) */
-    gp.size = (sizeof(unsigned long long) * 3) - 1;
+    gp.size = (sizeof(struct gdt_entry) * 3) - 1;
     gp.address = (unsigned int)&gdt_entries;
 
     /* Aqui é o preenchimento dos gdt_entries[0], [1] e [2] com os bits do livro */

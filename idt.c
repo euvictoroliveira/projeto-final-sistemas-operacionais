@@ -1,34 +1,10 @@
 /* idt.c */
-#define PIC1_COMMAND 0x20
-#define PIC1_DATA    0x21
-#define PIC2_COMMAND 0xA0
-#define PIC2_DATA    0xA1
-#define KBD_DATA_PORT 0x60
+#include "idt.h"
+#include "io.h"
 
-/* Estrutura de uma entrada na IDT (Interrupt Gate) */
-struct idt_entry {
-    unsigned short offset_lowerbits; // Endereço do handler (bits 0-15)
-    unsigned short selector;         // Seletor de segmento de código (0x08!)
-    unsigned char zero;              // Sempre zero
-    unsigned char type_attr;         // Atributos: P (Presente), DPL, Tipo
-    unsigned short offset_higherbits; // Endereço do handler (bits 16-31)
-} __attribute__((packed));
-
-/* Ponteiro que o processador usará (semelhante ao gdt_ptr) */
-struct idt_ptr {
-    unsigned short limit;
-    unsigned int base;
-} __attribute__((packed));
-
-
+/* Variáveis Globais */
 struct idt_entry idt[256]; // A tabela com 256 interrupções possíveis
 struct idt_ptr idtp;
-
-unsigned char inb(unsigned short port);
-
-extern void outb(unsigned short port, unsigned char data);
-extern void idt_load();
-
 
 
 void idt_set_gate(unsigned char num, unsigned long base, unsigned short sel, unsigned char flags) {
@@ -38,8 +14,6 @@ void idt_set_gate(unsigned char num, unsigned long base, unsigned short sel, uns
     idt[num].zero = 0;
     idt[num].type_attr = flags;
 }
-
-
 
 
 void pic_remap() {
@@ -75,22 +49,10 @@ void idt_init() {
 
     // 3. Registra o handler do teclado (Exemplo para IRQ1 que remapeamos para 0x21)
     // O seletor é 0x08 (GDT de Código) e os atributos 0x8E (Interrupt Gate presente)
-    extern void keyboard_handler_stub();
-    idt_set_gate(0x21, (unsigned int)keyboard_handler_stub, 0x08, 0x8E);
+    extern void interrupt_handler_33();
+    idt_set_gate(33, (unsigned int)interrupt_handler_33, 0x08, 0x8E);
+
     // 4. Remapeia o PIC e carrega a IDT
     pic_remap();
     idt_load();
-}
-
-void keyboard_handler_c() {
-    /* Lê o scancode do teclado (o sinal físico da tecla) */
-    unsigned char scancode = inb(KBD_DATA_PORT);
-
-    /* Por enquanto, vamos apenas enviar um log para o serial para testar */
-    /* No futuro, você traduzirá esse scancode para ASCII */
-    serial_write(0x3F8, "Tecla pressionada!\n", 19);
-
-    /* MUITO IMPORTANTE: Avisar o PIC que a interrupção terminou */
-    /* Se não enviar o EOI (End of Interrupt), o teclado travará após a 1ª tecla */
-    outb(0x20, 0x20); // Envia EOI para o PIC Mestre
 }
