@@ -40,16 +40,26 @@ void keyboard_handle_scancode() {
 
         /* Se for um caractere válido, enviamos para os logs */
         if (ascii != 0) {
+
+          if(ascii == '\b') {
+            /*Só apaga se o cursor estiver na linha 1*/
+            if(cursor_pos > 80){
+            fb_backspace(cursor_pos); // Chama a função de apagar a letra
+            cursor_pos--;             // Volta o cursor
+            }
+          } else {
+
             char str[2] = {ascii, '\0'}; /* Cria uma mini-string para imprimir */
             serial_write(SERIAL_COM1_BASE, str, 1 );
 
-	    /* 2. Imprime na tela do Bochs (Mão Direita) */
+            /* 2. Imprime na tela do Bochs (Mão Direita) */
             /* 2 = Verde, 0 = Fundo Preto */
             fb_write_cell(cursor_pos, ascii, 2, 0);
 
             /* 3. Avança a posição do cursor e move o bloquinho piscante */
             cursor_pos++;
             fb_move_cursor(cursor_pos);
-}
+          }
+        }
     }
 }

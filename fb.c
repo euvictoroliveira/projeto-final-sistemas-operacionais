@@ -43,3 +43,15 @@ void fb_write(char *buf, unsigned int len) {
     /* Move o cursor para o final do texto para ficar visualmente correto */
     fb_move_cursor(len);
 }
+
+void fb_backspace(unsigned int pos){
+    if(pos > 0){
+        unsigned int new_pos = pos - 1;
+        /* Sobre Escreve com espaço vazio e depois coloca o curso nessa posição
+        Mantendo o fundo preto e a cor da letra*/
+        fb_write_cell(new_pos, ' ', FB_GREEN, FB_BLACK);
+        /* Recua o ponteiro */
+        fb_move_cursor(new_pos);
+    }
+}
+
