@@ -11,23 +11,39 @@
 /* Configura a velocidade (Baud Rate) da porta serial */
 void serial_configure_baud_rate(unsigned short com, unsigned short divisor) {
     /* Ativa o bit DLAB para avisar o chip que vamos enviar a velocidade */
-    outb(SERIAL_LINE_COMMAND_PORT(com), 0x80);
+    /*     Bit:     | 7 | 6 | 5 4 3 | 2 | 1 0 |
+     *     Content: | d | b | prty  | s | dl  |
+     *     Value:   | 1 | 0 | 0 0 0 | 0 | 0 0 | = 0x80
+    */
+    outb(SERIAL_LINE_COMMAND_PORT(com), 0x80); // Ativação
 
     /* Envia a parte alta e baixa do divisor matemático */
-    outb(SERIAL_DATA_PORT(com), (divisor >> 8) & 0x00FF);
-    outb(SERIAL_DATA_PORT(com), divisor & 0x00FF);
+    outb(SERIAL_DATA_PORT(com), (divisor >> 8) & 0x00FF); // Velocidade
+    outb(SERIAL_DATA_PORT(com), divisor & 0x00FF); // Velocidade
 }
 
 /* Configura o formato da linha (8 bits de dados, 1 bit de parada, sem paridade) */
 void serial_configure_line_control(unsigned short com) {
     /* 0x03 configura o tamanho padrão de 8 bits */
-    outb(SERIAL_LINE_COMMAND_PORT(com), 0x03);
+    /*     Bit:     | 7 | 6 | 5 4 3 | 2 | 1 0 |
+     *     Content: | d | b | prty  | s | dl  |
+     *     Value:   | 0 | 0 | 0 0 0 | 0 | 1 1 | = 0x03
+    */
+    outb(SERIAL_LINE_COMMAND_PORT(com), 0x03); // Tamanho da linha 
 
     /* Configuração padrão para limpar e ativar as filas (FIFOs) do chip */
-    outb(SERIAL_FIFO_COMMAND_PORT(com), 0xC7);
+    /*     Bit:     | 7 6 | 5  | 4 | 3   | 2   | 1   | 0 |
+     *     Content: | lvl | bs | r | dma | clt | clr | e |
+     *     Value:   | 1 1 | 1  | 0 |  0  |  0  |  1  | 1 |= 0xC7
+    */
+    outb(SERIAL_FIFO_COMMAND_PORT(com), 0xC7); // Ativação da fila
 
-    /* Prepara o modem para enviar os dados */
-    outb(SERIAL_MODEM_COMMAND_PORT(com), 0x0B);
+    /*     Bit:     | 7 | 6 | 5  | 4  | 3   | 2   | 1   | 0   |
+     *     Content: | r | r | af | lb | ao2 | ao1 | rts | dtr |
+     *     Value:   | 0 | 0 | 0  | 0  |  0  |  0  |  1  |  1  |= 0x0B
+    */
+    /* Controle de fluxo dos dados */
+    outb(SERIAL_MODEM_COMMAND_PORT(com), 0x0B); // Ativação do modem
 }
 
 /* Checa se o chip terminou de enviar a última letra e está pronto para a próxima */
