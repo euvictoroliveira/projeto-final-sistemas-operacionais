@@ -8,12 +8,15 @@ kernel_stack:                   ; Rótulo para o início da memória da pilha
     resb KERNEL_STACK_SIZE      ; Reserva espaço para a pilha do kernel
 
 MAGIC_NUMBER equ 0x1BADB002     ; Multiboot magic number
+ALIGN_MODULES equ 0x00000001    ; chama o GRUB para aling modules 
+
 FLAGS        equ 0x0            ; Multiboot flags
-CHECKSUM     equ -MAGIC_NUMBER  ; Checksum (magic + flags + checksum deve ser 0)
+CHECKSUM     equ (-MAGIC_NUMBER + ALIGN_MODULES) ; Checksum (magic + flags + checksum deve ser 0)
 
 section .text
 align 4                         ; O cabeçalho Multiboot deve estar alinhado em 4 bytes
     dd MAGIC_NUMBER
+    dd ALIGN_MODULES
     dd FLAGS
     dd CHECKSUM
 
