@@ -1,1 +1,17 @@
+# Logs e saídas do emulador
 bochslog.txt
+com1.out
+
+# Arquivos compilados (Objetos)
+*.o
+
+# Arquivos executáveis e binários
+*.elf
+program
+
+# Imagens de disco geradas
+*.iso
+
+# Arquivos temporários e backups de editores de texto
+*.save
+*~
