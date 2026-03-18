@@ -1,4 +1,6 @@
 global loader                   ; o símbolo de entrada para o ELF
+global load_page_directory
+global enable_paging
 
 KERNEL_STACK_SIZE equ 4096      ; Tamanho da pilha em bytes (4 KB)
 
@@ -33,3 +35,33 @@ loader:                         ; Ponto de entrada
 
 .loop:
     jmp .loop                   ; Loop infinito para evitar que a CPU saia do kernel
+
+
+; Função para carregar o endereço do Diretório no CR3
+load_page_directory:
+    push ebp
+    mov ebp, esp
+    mov eax, [ebp+8]    ; Pega o 1º argumento da função C (endereço do diretório)
+    mov cr3, eax        ; Salva no CR3
+    mov esp, ebp
+    pop ebp
+    ret
+
+; Função para puxar a alavanca e ativar a paginação
+enable_paging:
+    push ebp
+    mov ebp, esp
+
+    ; 1. Ativa o PSE (Page Size Extension) no CR4 para suportar páginas de 4MB
+    mov eax, cr4
+    or eax, 0x00000010
+    mov cr4, eax
+
+    ; 2. Ativa o bit PG (Paging) no CR0 para ligar a paginação de fato
+    mov eax, cr0
+    or eax, 0x80000000
+    mov cr0, eax
+
+    mov esp, ebp
+    pop ebp
+    ret
