@@ -5,7 +5,7 @@
 #include "multiboot.h"
 
 void kmain(unsigned int ebx) {
-    /* 1. Configura a Porta Serial */
+    /* 1. Configura a Porta Serial Teste de Git*/
     serial_configure_baud_rate(SERIAL_COM1_BASE, 3);
     serial_configure_line_control(SERIAL_COM1_BASE);
 
