@@ -2,7 +2,7 @@
 #include "io.h"
 
 /* O endereço mágico do Framebuffer da Placa de Vídeo (VGA) */
-#define FB_ADDRESS 0x000B8000
+#define FB_ADDRESS 0xC00B8000
 
 /* Portas de controle do cursor da VGA */
 #define FB_COMMAND_PORT 0x3D4
