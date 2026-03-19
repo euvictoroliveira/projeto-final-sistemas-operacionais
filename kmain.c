@@ -20,7 +20,7 @@ void kmain(unsigned int ebx) {
     __asm__ __volatile__("sti");
 
     // 5. Transforma o número bruto do ebx em um ponteiro para a struct do Multiboot
-    multiboot_info_t *mbinfo = (multiboot_info_t *) ebx;
+    multiboot_info_t *mbinfo = (multiboot_info_t *) (ebx + 0xC0000000);
 
     // --- INÍCIO DA BLINDAGEM DO KERNEL ---
 
@@ -42,8 +42,8 @@ void kmain(unsigned int ebx) {
 
     /* 6. mods_addr aponta para uma lista de módulos (multiboot_module_t).
           Nós precisamos acessar o primeiro item dessa lista para pegar o mod_start! */
-    multiboot_module_t *modules = (multiboot_module_t *) mbinfo->mods_addr;
-    unsigned int address_of_module = modules->mod_start;
+    multiboot_module_t *modules = (multiboot_module_t *) (mbinfo->mods_addr + 0xC0000000);
+    unsigned int address_of_module = modules->mod_start + 0xC0000000;
 
     /* 7. O Salto de Fé! Define o ponteiro de função e pula para o endereço do módulo */
     typedef void (*call_module_t)(void);
