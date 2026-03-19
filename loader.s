@@ -1,6 +1,7 @@
 global loader                   ; o símbolo de entrada para o ELF
 global load_page_directory
 global enable_paging
+global invalidate_tlb
 
 KERNEL_STACK_SIZE equ 4096      ; Tamanho da pilha em bytes (4 KB)
 
@@ -61,6 +62,19 @@ enable_paging:
     mov eax, cr0
     or eax, 0x80000000
     mov cr0, eax
+
+    mov esp, ebp
+    pop ebp
+    ret
+
+
+; Função para apagar o cache de uma página específica no TLB
+invalidate_tlb:
+    push ebp
+    mov ebp, esp
+
+    mov eax, [ebp+8]    ; Pega o 1º argumento da função C (o endereço virtual)
+    invlpg [eax]        ; Executa a instrução nativa de invalidação no endereço
 
     mov esp, ebp
     pop ebp
