@@ -19,6 +19,8 @@
 /* Ponteiro direto para a memória de vídeo física */
 char *fb = (char *) FB_ADDRESS;
 
+static unsigned int cursor_pos = 0;
+
 /* Função para mover o cursor piscante na tela */
 void fb_move_cursor(unsigned short pos) {
     outb(FB_COMMAND_PORT, FB_HIGH_BYTE_COMMAND);
@@ -38,10 +40,14 @@ void fb_write(char *buf, unsigned int len) {
     unsigned int i;
     for (i = 0; i < len; i++) {
         /* Escreve a letra com texto verde e fundo preto */
-        fb_write_cell(i, buf[i], FB_GREEN, FB_BLACK);
+        fb_write_cell(cursor_pos++, buf[i], FB_GREEN, FB_BLACK);
+
+        // Proteção opcional: se o cursor passar do limite da tela, volta pro 0
+        if (cursor_pos >= 80 * 25) {
+                cursor_pos = 0;
+            }
     }
-    /* Move o cursor para o final do texto para ficar visualmente correto */
-    fb_move_cursor(len);
+
 }
 
 void fb_backspace(unsigned int pos){

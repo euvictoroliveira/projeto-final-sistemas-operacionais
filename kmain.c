@@ -3,6 +3,16 @@
 #include "gdt.h"
 #include "idt.h"
 #include "multiboot.h"
+#include "utils.h"
+#include "pmm.h"
+
+
+/* Importando os símbolos gerados dinamicamente pelo Linker Script */
+extern char kernel_virtual_start[];
+extern char kernel_virtual_end[];
+extern char kernel_physical_start[];
+extern char kernel_physical_end[];
+
 
 void kmain(unsigned int ebx) {
     /* 1. Configura a Porta Serial Teste de Git*/
@@ -38,6 +48,18 @@ void kmain(unsigned int ebx) {
         for (;;) { __asm__("cli; hlt"); } // Trava o Kernel
     }
 
+
+    // 5.3. Preparação para o Gerenciador de Memória Física (PMM)
+    // Nós convertemos os símbolos do Linker em números (unsigned int)
+    unsigned int start_phys = (unsigned int) kernel_physical_start;
+    unsigned int end_phys   = (unsigned int) kernel_physical_end;
+    unsigned int end_virt   = (unsigned int) kernel_virtual_end;
+
+    // 5.4. INICIALIZAÇÃO DO PMM (BITMAP)
+    // O Bitmap será construído na RAM exatamente a partir de 'end_virt'
+    pmm_init(mbinfo, start_phys, end_phys, end_virt);
+
+
     // --- FIM DA BLINDAGEM ---
 
     /* 6. mods_addr aponta para uma lista de módulos (multiboot_module_t).
@@ -49,5 +71,53 @@ void kmain(unsigned int ebx) {
     typedef void (*call_module_t)(void);
     call_module_t start_program = (call_module_t) address_of_module;
 
-    start_program(); // A CPU pula para o program.s aqui e nunca mais volta!
+
+    // Pegando os endereços exatos onde o Kernel começa e termina
+    unsigned int start_addr = (unsigned int) kernel_virtual_start;
+    unsigned int end_addr   = (unsigned int) kernel_virtual_end;
+
+    // Calculando o peso do Kernel na RAM
+    unsigned int kernel_size_bytes = end_addr - start_addr;
+    unsigned int kernel_size_kb    = kernel_size_bytes / 1024;
+
+
+    // --- INÍCIO DA VARREDURA DE MÓDULOS ---
+    unsigned int total_modules_size_bytes = 0;
+
+    /* O ponteiro 'modules' funciona como um array. Vamos varrer todos os módulos 
+       que o GRUB carregou (mesmo que seja apenas 1 por enquanto). */
+    for (unsigned int i = 0; i < mbinfo->mods_count; i++) {
+        unsigned int mod_inicio = modules[i].mod_start;
+        unsigned int mod_fim    = modules[i].mod_end;
+
+        // Acumula o tamanho (Fim - Início) na nossa variável total
+        total_modules_size_bytes += (mod_fim - mod_inicio);
+    }
+
+    unsigned int total_modules_size_kb = total_modules_size_bytes / 1024;
+    // --- FIM DA VARREDURA ---
+
+    // Exibição do tamanho de memória que o Kernel ocupa
+    // Criamos buffers para guardar os textos gerados (32 caracteres é mais que suficiente)
+    char buffer_kernel[32];
+    char buffer_modulos[32];
+
+    // Convertemos os números (na base 10) para texto
+    itoa(kernel_size_kb, buffer_kernel, 10);
+    itoa(total_modules_size_kb, buffer_modulos, 10);
+
+    // Imprimimos o peso do Kernel
+    fb_write("Tamanho do Kernel (KB): ", 24);
+    fb_write(buffer_kernel, strlen(buffer_kernel));
+
+    // Podemos improvisar uma quebra de linha ou espaço aqui, dependendo de como
+    // está o seu fb_write. Se o seu fb_write não pular linha automático, imprima um espaço:
+    fb_write(" | ", 3);
+
+    // Imprimimos o peso dos Módulos
+    fb_write("Tamanho dos Modulos (KB): ", 26);
+    fb_write(buffer_modulos, strlen(buffer_modulos));
+
+
+    // start_program(); // A CPU pula para o program.s aqui e nunca mais volta!
 }
