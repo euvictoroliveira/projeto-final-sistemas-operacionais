@@ -118,6 +118,45 @@ void kmain(unsigned int ebx) {
     fb_write("Tamanho dos Modulos (KB): ", 26);
     fb_write(buffer_modulos, strlen(buffer_modulos));
 
+    // ====================================================
+    // TESTE DO GERENCIADOR FÍSICO DE MEMÓRIA (PMM)
+    // ====================================================
+
+    // 1. Alocando 3 quadros físicos de 4 KB
+    unsigned int frame1 = pmm_alloc_frame();
+    unsigned int frame2 = pmm_alloc_frame();
+    unsigned int frame3 = pmm_alloc_frame();
+
+    char buf[32]; // Buffer para converter os números
+
+    // Imprime o endereço do Frame 1 (Pula linha com um divisor)
+    fb_write(" | F1: 0x", 9);
+    itoa(frame1, buf, 16); // O '16' transforma o número em formato Hexadecimal!
+    fb_write(buf, strlen(buf));
+
+    // Imprime o endereço do Frame 2
+    fb_write(" F2: 0x", 7);
+    itoa(frame2, buf, 16);
+    fb_write(buf, strlen(buf));
+
+    // Imprime o endereço do Frame 3
+    fb_write(" F3: 0x", 7);
+    itoa(frame3, buf, 16);
+    fb_write(buf, strlen(buf));
+
+    // 2. O Teste de Reciclagem (Free)
+    // Vamos liberar o quadro do meio
+    pmm_free_frame(frame2);
+
+    // Agora pedimos um quadro novo. O PMM DEVE reaproveitar a vaga do Frame 2!
+    unsigned int frame4 = pmm_alloc_frame();
+
+    fb_write(" | Reciclado: 0x", 16);
+    itoa(frame4, buf, 16);
+    fb_write(buf, strlen(buf));
+
+    // ====================================================
+
 
     // start_program(); // A CPU pula para o program.s aqui e nunca mais volta!
 }
