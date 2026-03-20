@@ -3,6 +3,12 @@ ENTRY(loader)                /* the name of the entry symbol */
 	SECTIONS {
 	. = 0xC0100000;              /* the code should be relocated to 3GB + 1MB */
 
+
+	/* --- MARCADORES DE INÍCIO DO KERNEL --- */
+	kernel_virtual_start = .;
+	kernel_physical_start = . - 0xC0000000;
+
+
 	/* align at 4 KB and load at 1 MB */
 	.text ALIGN (0x1000) : AT(ADDR(.text) - 0xC0000000)
 	{
@@ -27,4 +33,9 @@ ENTRY(loader)                /* the name of the entry symbol */
 	    *(COMMON)            /* all COMMON sections from all files */
 	    *(.bss)              /* all bss sections from all files */
 	}
+
+	/* --- MARCADORES DE FIM DO KERNEL --- */
+	kernel_virtual_end = .;
+	kernel_physical_end = . - 0xC0000000;
+
 }
