@@ -5,6 +5,8 @@
 #include "multiboot.h"
 #include "utils.h"
 #include "pmm.h"
+#include "vmm.h"
+#include "kheap.h"
 
 
 /* Importando os símbolos gerados dinamicamente pelo Linker Script */
@@ -12,6 +14,14 @@ extern char kernel_virtual_start[];
 extern char kernel_virtual_end[];
 extern char kernel_physical_start[];
 extern char kernel_physical_end[];
+
+
+// Estrutura de teste para o sistema
+struct Veiculo {
+    int id;
+    int ano;
+    int preco;
+};
 
 
 void kmain(unsigned int ebx) {
@@ -24,6 +34,9 @@ void kmain(unsigned int ebx) {
 
     /* 3. Inicializa as Interrupções (IDT) */
     idt_init();
+
+
+    fb_clear_screen();
 
 
     /* 4. Habilita as Interrupções Globais na CPU */
@@ -130,7 +143,7 @@ void kmain(unsigned int ebx) {
     char buf[32]; // Buffer para converter os números
 
     // Imprime o endereço do Frame 1 (Pula linha com um divisor)
-    fb_write(" | F1: 0x", 9);
+    fb_write("\n\nF1: 0x", 9);
     itoa(frame1, buf, 16); // O '16' transforma o número em formato Hexadecimal!
     fb_write(buf, strlen(buf));
 
@@ -155,6 +168,47 @@ void kmain(unsigned int ebx) {
     itoa(frame4, buf, 16);
     fb_write(buf, strlen(buf));
 
+    // ====================================================
+
+    // ====================================================
+    // TESTE DO GERENCIADOR VIRTUAL E KERNEL HEAP (Gestor Auto)
+    // ====================================================
+
+    // 1. Inicializa o nosso Bairro do Heap (O estoque inicial de 4 KB em 0xD0000000)
+    kheap_init();
+
+    // Pula uma linha no Framebuffer para não embolar com o teste do PMM
+    // Preencha com espaços se o seu fb_write não aceitar '\n' corretamente
+    fb_write("\n\n", 7);
+
+    // TESTE 1: A Primeira Alocação
+    struct Veiculo *carro1 = (struct Veiculo *) kmalloc(sizeof(struct Veiculo));
+    if (carro1 != 0) {
+        carro1->id = 101;
+        fb_write("C1: 0x", 6);
+        itoa((unsigned int)carro1, buf, 16); // Imprime o endereço Virtual!
+        fb_write(buf, strlen(buf));
+    }
+
+    // TESTE 2: A Fatiadora em Ação
+    struct Veiculo *carro2 = (struct Veiculo *) kmalloc(sizeof(struct Veiculo));
+    if (carro2 != 0) {
+        carro2->id = 102;
+        fb_write(" | C2: 0x", 9);
+        itoa((unsigned int)carro2, buf, 16);
+        fb_write(buf, strlen(buf));
+    }
+
+    // TESTE 3: A Reciclagem Inteligente (kfree)
+    kfree(carro1);
+
+    struct Veiculo *carro3 = (struct Veiculo *) kmalloc(sizeof(struct Veiculo));
+    if (carro3 != 0) {
+        carro3->id = 103;
+        fb_write(" | C3(Reciclado): 0x", 20);
+        itoa((unsigned int)carro3, buf, 16);
+        fb_write(buf, strlen(buf));
+    }
     // ====================================================
 
 

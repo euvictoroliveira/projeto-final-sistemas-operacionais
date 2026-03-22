@@ -3,6 +3,9 @@ global load_page_directory
 global enable_paging
 global invalidate_tlb
 
+global boot_page_directory
+global boot_page_table1
+
 KERNEL_STACK_SIZE equ 4096      ; Tamanho da pilha em bytes (4 KB)
 
 section .bss
