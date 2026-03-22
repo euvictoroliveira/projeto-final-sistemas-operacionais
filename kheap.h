@@ -1,7 +1,6 @@
 #ifndef KHEAP_H
 #define KHEAP_H
 
-#include "types.h"
 
 // O cabeçalho mágico que vai ficar escondido antes de cada bloco alocado
 typedef struct header {

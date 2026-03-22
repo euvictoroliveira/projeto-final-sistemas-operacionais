@@ -21,6 +21,19 @@ char *fb = (char *) FB_ADDRESS;
 
 static unsigned int cursor_pos = 0;
 
+void fb_clear_screen() {
+    // Loop para varrer as 2000 posições de texto na tela (80 colunas x 25 linhas)
+    for (int i = 0; i < 2000; i++) {
+        // Escreve um caractere de espaço (' ') com fundo Preto (0)
+        // O 10 é Verde Claro para manter o padrão que combinamos
+        fb_write_cell(i, ' ', 10, 0);
+    }
+
+    // REDEFINIR O CURSOR: Isso é vital para o teste!
+    cursor_pos = 0; // Se você usa o cursor_pos estático no fb.c, zere-o aqui.
+    fb_move_cursor(0); // Move o cursor físico para o topo esquerdo (0,0)
+}
+
 /* Função para mover o cursor piscante na tela */
 void fb_move_cursor(unsigned short pos) {
     outb(FB_COMMAND_PORT, FB_HIGH_BYTE_COMMAND);
@@ -39,13 +52,16 @@ void fb_write_cell(unsigned int i, char c, unsigned char fg, unsigned char bg) {
 void fb_write(char *buf, unsigned int len) {
     unsigned int i;
     for (i = 0; i < len; i++) {
-        /* Escreve a letra com texto verde e fundo preto */
-        fb_write_cell(cursor_pos++, buf[i], FB_GREEN, FB_BLACK);
-
-        // Proteção opcional: se o cursor passar do limite da tela, volta pro 0
-        if (cursor_pos >= 80 * 25) {
-                cursor_pos = 0;
-            }
+    // Se encontrarmos o caractere de nova linha (Enter)
+        if (buf[i] == '\n') {
+            // A matemática para pular para a próxima linha
+            cursor_pos = (cursor_pos / 80 + 1) * 80;
+        }
+        else {
+            // Escreve o caractere normal na tela (com a cor verde/branca, etc)
+            fb_write_cell(cursor_pos, buf[i], FB_GREEN, FB_BLACK);
+            cursor_pos++;
+        }
     }
 
 }
