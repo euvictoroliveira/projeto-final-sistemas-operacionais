@@ -7,6 +7,7 @@
 #include "pmm.h"
 #include "vmm.h"
 #include "kheap.h"
+#include "fs.h"
 
 
 /* Importando os símbolos gerados dinamicamente pelo Linker Script */
@@ -15,6 +16,7 @@ extern char kernel_virtual_end[];
 extern char kernel_physical_start[];
 extern char kernel_physical_end[];
 
+extern superblock_t super_block; // Avisa ao compilador que ela existe no fs.c
 
 // Estrutura de teste para o sistema
 struct Veiculo {
@@ -211,6 +213,59 @@ void kmain(unsigned int ebx) {
     }
     // ====================================================
 
+    // ====================================================
+    // TESTE DO SISTEMA DE ARQUIVOS (RAMFS)
+    // ====================================================
+    char *msg_fs_inicio = "\n\n--- TESTE DO RAMFS ---\n";
+    fb_write(msg_fs_inicio, strlen(msg_fs_inicio));
+
+    // 1. Inicializa o Disco Virtual (Isso vai chamar o kmalloc internamente)
+    fs_init();
+
+    // 1. Pegamos o endereço físico/virtual onde a tabela de Inodes começa
+    unsigned int addr_tabela = (unsigned int)super_block.inode_table;
+
+    char buf_hex[16]; // Buffer para guardar a string hexadecimal
+    itoa(addr_tabela, buf_hex, 16); // Converte o endereço para BASE 16
+
+    fb_write("\nEndereço Inode Table: 0x\n", 25);
+    fb_write(buf_hex, strlen(buf_hex));
+
+    // 2. Teste de Criação de Arquivos
+
+
+    int res1 = fs_create("carros_estoque.db");
+    if (res1 == 0) {
+        char *msg_c1 = "\nCriado: carros_estoque.db \n";
+        fb_write(msg_c1, strlen(msg_c1));
+    }
+
+    int res2 = fs_create("vendas_mensais.txt");
+    if (res2 == 0) {
+        char *msg_c2 = "\nCriado: vendas_mensais.txt \n";
+        fb_write(msg_c2, strlen(msg_c2));
+    }
+
+    int res3 = fs_create("logs_sistema.log");
+    if (res3 == 0) {
+        char *msg_c3 = "\nCriado: logs_sistema.log\n\n";
+        fb_write(msg_c3, strlen(msg_c3));
+    }
+
+
+
+    // Deleta apenas um deles para ver se a listagem ignora ele
+    int res4 = fs_delete("vendas_mensais.txt");
+    if (res4 == 0) {
+        char *msg_d1 = "\nDeletado: vendas_mensais.txt\n\n";
+        fb_write(msg_d1, strlen(msg_d1));
+    }
+
+
+    // Chama a listagem!
+    // A tela deve mostrar apenas "carros_estoque.db" e "logs_sistema.log"
+    fs_list();
+    // ====================================================
 
     // start_program(); // A CPU pula para o program.s aqui e nunca mais volta!
 }
