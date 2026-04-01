@@ -267,5 +267,46 @@ void kmain(unsigned int ebx) {
     fs_list();
     // ====================================================
 
+
+    // ====================================================
+    // TESTE DE ESCRITA (fs_write)
+    // ====================================================
+
+    // 1. Preparamos o dado que queremos salvar no nosso banco de dados
+    char *dado_carro = "ID: 101 | Modelo: Civic | Ano: 2024 | Preco: 120000";
+    unsigned int tamanho_dado = strlen(dado_carro);
+
+    // 2. Chamamos a função de escrita
+    int status_write = fs_write("carros_estoque.db", dado_carro, tamanho_dado);
+
+    // 3. Imprimimos o resultado na tela
+    if (status_write == 0) {
+        fb_write("\n[OK] Dados gravados com sucesso no arquivo 'carros_estoque.db'", 64);
+    } else {
+        fb_write("\n[ERRO] Falha ao gravar dados.", 30);
+    }
+    // ====================================================
+
+
+    // ====================================================
+    // TESTE DE LEITURA E EXIBIÇÃO (fs_read)
+    // ====================================================
+    char buffer_leitura[512]; // Criamos um array vazio com o tamanho máximo de 1 bloco
+
+    // Tentamos ler o arquivo que acabamos de gravar
+    int bytes_lidos = fs_read("carros_estoque.db", buffer_leitura);
+
+    if (bytes_lidos > 0) {
+        char *msg_leitura = "\n--- CONTEUDO DO ARQUIVO ---\n";
+        fb_write(msg_leitura, strlen(msg_leitura));
+
+        // Imprime o conteúdo exato que o fs_read trouxe da Zona de Dados!
+        fb_write(buffer_leitura, strlen(buffer_leitura));
+    } else {
+        fb_write("[ERRO] Arquivo nao encontrado para leitura.\n", 44);
+    }
+    // ====================================================
+
+
     // start_program(); // A CPU pula para o program.s aqui e nunca mais volta!
 }

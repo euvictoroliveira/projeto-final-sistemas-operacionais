@@ -2,9 +2,12 @@
 #define FS_H
 
 // Definições do tamanho do nosso "Disco"
-#define FS_MAX_FILES 64          // Limite de arquivos no nosso disco
+#define FS_MAX_FILES 16          // Limite de arquivos no nosso disco
 #define FS_BLOCK_SIZE 512        // Cada bloco de dados terá 512 bytes
-#define FS_MAX_BLOCKS 256        // Total de blocos de dados no disco (128 KB de espaço)
+#define FS_MAX_BLOCKS 4          // Total de blocos de dados no disco (128 KB de espaço)
+
+// A fórmula mágica para arredondar para cima!
+#define BITMAP_SIZE ((FS_MAX_BLOCKS + 31) / 32)
 
 // 1. A ESTRUTURA DO INODE (O "RG" do Arquivo)
 typedef struct {
@@ -25,7 +28,7 @@ typedef struct {
 
     // Um mapa de bits (Bitmap) para sabermos quais blocos de dados estão livres!
     // Semelhante ao que fizemos no PMM, mas agora para os "setores" do arquivo
-    unsigned int free_blocks_bitmap[FS_MAX_BLOCKS / 32];
+    unsigned int free_blocks_bitmap[BITMAP_SIZE];
 } superblock_t;
 
 // 3. AS FUNÇÕES DA NOSSA API (O que o seu programa vai chamar)
@@ -36,5 +39,6 @@ void fs_list();                                // Imprime todos os arquivos na t
 
 // Bônus para o futuro: ler e escrever!
 int fs_write(char *name, char *buffer, unsigned int size);
+int fs_read(char *name, char *buffer);
 
 #endif
