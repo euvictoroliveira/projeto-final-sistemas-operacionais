@@ -161,6 +161,39 @@ int fs_delete(char *name) {
     return -1; // Erro: Arquivo não encontrado
 }
 
+
+/**
+ * Remove um diretório do disco (Apenas se estiver vazio)
+ */
+int fs_rmdir(char *name) {
+    // 1. Procura a pasta pelo nome dentro do diretório atual
+    for (int i = 0; i < FS_MAX_FILES; i++) {
+        if (super_block.inode_table[i].used == 1 &&
+            super_block.inode_table[i].type == 1 && // Tem que ser PASTA
+            super_block.inode_table[i].parent_inode == current_dir_inode &&
+            fs_strcmp(super_block.inode_table[i].name, name) == 0) {
+
+            // 2. Trava de Segurança: Verifica se a pasta está vazia
+            for (int j = 0; j < FS_MAX_FILES; j++) {
+                // Se existir algum arquivo cujo 'pai' seja esta pasta (i), aborte!
+                if (super_block.inode_table[j].used == 1 &&
+                    super_block.inode_table[j].parent_inode == i) {
+                    return -2; // Erro: Diretório não está vazio
+                }
+            }
+
+            // 3. "Apaga" a pasta liberando o Inode
+            // (Pastas no nosso FS não consomem blocos de dados, só Inodes)
+            super_block.inode_table[i].used = 0;
+            super_block.free_inodes++;
+
+            return 0; // Sucesso
+        }
+    }
+    return -1; // Erro: Pasta não encontrada
+}
+
+
 /**
  * Percorre o disco e lista os arquivos ativos no Framebuffer
  */

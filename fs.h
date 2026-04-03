@@ -50,5 +50,6 @@ int fs_read(char *name, char *buffer);
 int fs_mkdir(char *name);
 int fs_cd(char *name);
 char* fs_get_cwd_path();
+int fs_rmdir(char *name);
 
 #endif
