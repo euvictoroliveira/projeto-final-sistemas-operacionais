@@ -3,7 +3,10 @@
 #include "utils.h"   // Para usarmos o strlen, se necessário
 #include "fb.h"
 
-static int current_dir_inode
+static int current_dir_inode;
+
+// Buffer global estático para guardar o texto do caminho completo
+static char full_path_buffer[256];
 
 // Instância global do nosso Superbloco (O Gerente do Disco)
 superblock_t super_block;
@@ -27,6 +30,16 @@ void fs_strcpy(char *dest, const char *src) {
         *dest++ = *src++;
     }
     *dest = '\0'; // Adiciona o terminador nulo no final
+}
+
+
+// Concatena (junta) a string 'src' no final da string 'dest'
+void fs_strcat(char *dest, const char *src) {
+    while (*dest) dest++; // Vai até o terminador nulo do destino
+    while (*src) {
+        *dest++ = *src++; // Copia os caracteres
+    }
+    *dest = '\0';
 }
 
 // ======================================================================
@@ -60,6 +73,8 @@ void fs_init() {
         super_block.inode_table[i].used = 0;
         super_block.inode_table[i].size = 0;
         super_block.inode_table[i].start_block = 0;
+        super_block.inode_table[i].type = 0;          // Padrão é ARQUIVO
+        super_block.inode_table[i].parent_inode = -1; // Padrão aponta para RAIZ
     }
 
     // 4. Limpa o Bitmap de Blocos de Dados (Todos os blocos livres = 0)
@@ -105,6 +120,8 @@ int fs_create(char *name) {
             fs_strcpy(super_block.inode_table[i].name, name);
             super_block.inode_table[i].size = 0;
             super_block.inode_table[i].start_block = free_block;
+            super_block.inode_table[i].type = 0;                         // Marca explicitamente como ARQUIVO
+            super_block.inode_table[i].parent_inode = current_dir_inode; // Registra em qual pasta estamos criando
 
             // 5. Oficializa a criação!
             super_block.inode_table[i].used = 1;
@@ -122,7 +139,11 @@ int fs_create(char *name) {
 int fs_delete(char *name) {
     // 1. Procura o arquivo pelo nome na tabela de Inodes
     for (int i = 0; i < FS_MAX_FILES; i++) {
-        if (super_block.inode_table[i].used == 1 && fs_strcmp(super_block.inode_table[i].name, name) == 0) {
+        if (super_block.inode_table[i].used == 1 &&
+            super_block.inode_table[i].type == 0 && // Tem que ser arquivo
+	    super_block.inode_table[i].parent_inode == current_dir_inode && // Tem que estar na pasta atual
+	    fs_strcmp(super_block.inode_table[i].name, name) == 0)
+        {
 
             // 2. Descobre qual bloco de dados era dono desse arquivo
             int block = super_block.inode_table[i].start_block;
@@ -140,14 +161,19 @@ int fs_delete(char *name) {
     return -1; // Erro: Arquivo não encontrado
 }
 
-
 /**
  * Percorre o disco e lista os arquivos ativos no Framebuffer
  */
 void fs_list() {
-    fb_write("\n Conteudo de ", 13);
-    fb_write(current_dir_inode == -1 ? "/" : super_block.inode_table[current_dir_inode].name, 10);
+/*    fb_write("\n Conteudo de ", 14);
+
+    // Pega o nome do diretório atual ou "/"
+    char *dir_name = current_dir_inode == -1 ? "/" : super_block.inode_table[current_dir_inode].name;
+
+    // Imprime com o tamanho EXATO da string
+    fb_write(dir_name, strlen(dir_name));
     fb_write(":\n", 2);
+*/
 
     for (int i = 0; i < FS_MAX_FILES; i++) {
         if (super_block.inode_table[i].used == 1 &&
@@ -175,7 +201,10 @@ int fs_write(char *name, char *buffer, unsigned int size) {
 
     // 2. Busca sequencial na Tabela de Inodes
     for (int i = 0; i < FS_MAX_FILES; i++) {
-        if (super_block.inode_table[i].used == 1 && fs_strcmp(super_block.inode_table[i].name, name) == 0) {
+        if (super_block.inode_table[i].used == 1 &&
+	    super_block.inode_table[i].type == 0 && // Tem que ser arquivo
+            super_block.inode_table[i].parent_inode == current_dir_inode && // Tem que estar no diretório atual
+            fs_strcmp(super_block.inode_table[i].name, name) == 0) {
 
             // 3. Pegamos o número absoluto do bloco que foi reservado no fs_create
             int block = super_block.inode_table[i].start_block;
@@ -206,7 +235,10 @@ int fs_write(char *name, char *buffer, unsigned int size) {
 int fs_read(char *name, char *buffer) {
     // 1. Busca o arquivo na Tabela de Inodes
     for (int i = 0; i < FS_MAX_FILES; i++) {
-        if (super_block.inode_table[i].used == 1 && fs_strcmp(super_block.inode_table[i].name, name) == 0) {
+        if (super_block.inode_table[i].used == 1 &&
+	    super_block.inode_table[i].type == 0 && // Precisa ser arquivo
+	    super_block.inode_table[i].parent_inode == current_dir_inode && // Precisa estar no diretório atual
+            fs_strcmp(super_block.inode_table[i].name, name) == 0) {
 
             // 2. Coleta os metadados cruciais
             int block = super_block.inode_table[i].start_block;
@@ -267,4 +299,38 @@ int fs_cd(char *name) {
         }
     }
     return -1; // Pasta não encontrada
+}
+
+
+/**
+ * Retorna o caminho absoluto do diretório atual (ex: "/dir01/dir02")
+ */
+char* fs_get_cwd_path() {
+    // Se estivermos na raiz, o caminho é só a barra
+    if (current_dir_inode == -1) {
+        return "/";
+    }
+
+    // 1. Limpa o buffer de texto
+    full_path_buffer[0] = '\0';
+
+    // 2. Arrays para guardar a nossa "subida" na árvore
+    int path[16]; // Suporta até 16 pastas de profundidade
+    int depth = 0;
+    int curr = current_dir_inode;
+
+    // 3. Sobe na árvore de diretórios anotando os pais
+    while (curr != -1 && depth < 16) {
+        path[depth] = curr;
+        depth++;
+        curr = super_block.inode_table[curr].parent_inode;
+    }
+
+    // 4. Constrói a string de CIMA para BAIXO (da raiz até a pasta atual)
+    for (int i = depth - 1; i >= 0; i--) {
+        fs_strcat(full_path_buffer, "/");
+        fs_strcat(full_path_buffer, super_block.inode_table[path[i]].name);
+    }
+
+    return full_path_buffer;
 }

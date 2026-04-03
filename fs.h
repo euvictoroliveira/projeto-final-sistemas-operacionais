@@ -47,5 +47,8 @@ void fs_list();                                // Imprime todos os arquivos na t
 // Bônus para o futuro: ler e escrever!
 int fs_write(char *name, char *buffer, unsigned int size);
 int fs_read(char *name, char *buffer);
+int fs_mkdir(char *name);
+int fs_cd(char *name);
+char* fs_get_cwd_path();
 
 #endif

@@ -1,7 +1,7 @@
 #include "shell.h"
 #include "fb.h"
 #include "utils.h"
-
+#include "fs.h"
 
 #define BUFFER_SIZE 256
 
@@ -9,9 +9,14 @@
 char command_buffer[BUFFER_SIZE];
 int buffer_index = 0;
 
-// O visual do seu terminal
+// O visual do seu terminal (Caminho Absoluto)
 void shell_prompt() {
-    fb_write("\n> ", 3);
+    // Pega o caminho completo já formatado pelo RAMFS
+    char *cwd = fs_get_cwd_path();
+
+    // Imprime direto na tela: "/carros/teste> "
+    fb_write(cwd, strlen(cwd));
+    fb_write("> ", 2);
 }
 
 void shell_init() {
@@ -33,7 +38,7 @@ void shell_execute_command() {
 
     // COMANDO: help
     if (fs_strcmp(command_buffer, "help") == 0) {
-        fb_write("Comandos: ls, clear, touch <arq>, rm <arq>, help", 48);
+        fb_write("Comandos: \nls, clear, cd <dir>, touch <arq>, rm <arq>, mkdir <dir>, write <arq> <conteudo>, cat <arq>, help\n", 108);
     }
 
     // COMANDO: clear
@@ -52,7 +57,6 @@ void shell_execute_command() {
     else if (utils_strncmp(command_buffer, "touch ", 6) == 0) {
         char *filename = &command_buffer[6]; // O nome começa após o espaço
         if (fs_create(filename) == 0) {
-            fb_write("Arquivo criado com sucesso.", 27);
         } else {
             fb_write("Erro ao criar arquivo.", 22);
         }
@@ -62,15 +66,21 @@ void shell_execute_command() {
     else if (utils_strncmp(command_buffer, "rm ", 3) == 0) {
         char *filename = &command_buffer[3];
         if (fs_delete(filename) == 0) {
-            fb_write("Arquivo removido.", 17);
         } else {
             fb_write("Erro: arquivo nao encontrado.", 29);
         }
     }
 
-    // COMANDO: mkdir (Criar deretório)
+    // COMANDO: mkdir (Criar deretório e entra nele)
     else if (utils_strncmp(command_buffer, "mkdir ", 6) == 0) {
-        fs_mkdir(&command_buffer[6]);
+	char *dirname = &command_buffer[6]; // Pega o nome da pasta
+
+        if (fs_mkdir(dirname) == 0) {
+            // Se a pasta foi criada com sucesso, navegamos para ela na mesma hora!
+            fs_cd(dirname);
+        } else {
+            fb_write("Erro ao criar o diretorio.", 26);
+        }
     }
 
     // COMANDO: cd (Mudar de diretório)
@@ -80,6 +90,55 @@ void shell_execute_command() {
         }
     }
 
+    // COMANDO: write (Escrever texto em um arquivo)
+    // Exemplo: write estoque.txt Civic 2024 120000
+    else if (utils_strncmp(command_buffer, "write ", 6) == 0) {
+        char *args = &command_buffer[6];
+        char *filename = args;
+        char *content = 0; // Ponteiro para o conteúdo
+
+        // O algoritmo da Guilhotina: Procura o primeiro espaço
+        for (int i = 0; args[i] != '\0'; i++) {
+            if (args[i] == ' ') {
+                args[i] = '\0'; // Corta a string aqui!
+                content = &args[i + 1]; // O conteúdo começa na próxima letra
+                break;
+            }
+        }
+
+        if (content != 0) {
+            // Chama o FS do Kernel para gravar na Zona de Dados
+            int res = fs_write(filename, content, strlen(content));
+            if (res == 0) {
+            } else if (res == -1) {
+                fb_write("Erro: O dado excede o bloco (512b).", 35);
+            } else {
+                fb_write("Erro: Arquivo nao encontrado.", 29);
+            }
+        } else {
+            fb_write("Uso: write <arquivo> <texto>", 28);
+        }
+    }
+
+    // COMANDO: cat (Ler conteúdo de um arquivo)
+    // Exemplo: cat estoque.txt
+    else if (utils_strncmp(command_buffer, "cat ", 4) == 0) {
+        char *filename = &command_buffer[4];
+        char read_buf[512]; // Criamos um recipiente temporário na RAM
+
+        int bytes = fs_read(filename, read_buf);
+
+        if (bytes >= 0) {
+            // Se leu algo, joga direto na tela da Placa de Vídeo!
+            fb_write(read_buf, strlen(read_buf));
+
+	    fb_write("\n", 1);
+        } else {
+            fb_write("Erro: Arquivo nao encontrado.", 29);
+
+	    fb_write("\n", 1);
+        }
+    }
 
     else {
         fb_write("Comando desconhecido: ", 22);
