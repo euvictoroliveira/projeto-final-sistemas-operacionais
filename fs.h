@@ -15,7 +15,14 @@ typedef struct {
     unsigned int size;           // Tamanho real do arquivo em bytes
     unsigned int start_block;    // Índice do primeiro bloco de dados deste arquivo
     unsigned char used;          // Flag: 1 se o Inode está ocupado, 0 se está livre
+
+    unsigned char type;       // 0 para ARQUIVO, 1 para DIRETÓRIO
+    int parent_inode;         // Índice do Inode da pasta que contém este arquivo
 } inode_t;
+
+// No topo do fs.c, crie uma variável para rastrear onde o usuário está "pisando"
+static int current_dir_inode = -1; // -1 significa a RAIZ (Root)
+
 
 // 2. A ESTRUTURA DO SUPERBLOCO (O Gerenciador)
 typedef struct {

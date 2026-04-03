@@ -3,6 +3,8 @@
 #include "utils.h"   // Para usarmos o strlen, se necessário
 #include "fb.h"
 
+static int current_dir_inode
+
 // Instância global do nosso Superbloco (O Gerente do Disco)
 superblock_t super_block;
 
@@ -143,35 +145,21 @@ int fs_delete(char *name) {
  * Percorre o disco e lista os arquivos ativos no Framebuffer
  */
 void fs_list() {
-    char *titulo = "\n--- Arquivos (RAMFS) ---\n";
-    fb_write(titulo, strlen(titulo));
+    fb_write("\n Conteudo de ", 13);
+    fb_write(current_dir_inode == -1 ? "/" : super_block.inode_table[current_dir_inode].name, 10);
+    fb_write(":\n", 2);
 
-    int arquivos_encontrados = 0;
-
-    // Varre todos os 64 "slots" de Inodes possíveis
     for (int i = 0; i < FS_MAX_FILES; i++) {
-        // Se o slot estiver marcado como em uso (1)
-        if (super_block.inode_table[i].used == 1) {
-            arquivos_encontrados++;
+        if (super_block.inode_table[i].used == 1 &&
+            super_block.inode_table[i].parent_inode == current_dir_inode) {
 
-            // Imprime um marcador visual
-            fb_write("-> ", 3);
+            if (super_block.inode_table[i].type == 1) fb_write("[DIR] ", 6);
+            else fb_write("      ", 6);
 
-            // Imprime o nome do arquivo que está salvo no Inode
             fb_write(super_block.inode_table[i].name, strlen(super_block.inode_table[i].name));
-
-            // Imprime um separador (se o seu fb_write lidar bem com \n, pode trocar por \n)
-            fb_write(" | ", 3); 
+            fb_write("\n", 1);
         }
     }
-
-    // Feedback caso o disco esteja vazio
-    if (arquivos_encontrados == 0) {
-        char *vazio = "(Nenhum arquivo encontrado)\n";
-        fb_write(vazio, strlen(vazio));
-    }
-
-    fb_write("\n---------------------------------------\n", 40);
 }
 
 
@@ -240,4 +228,43 @@ int fs_read(char *name, char *buffer) {
     }
 
     return -1; // Erro: Arquivo não encontrado
+}
+
+
+int fs_mkdir(char *name) {
+    for (int i = 0; i < FS_MAX_FILES; i++) {
+        if (super_block.inode_table[i].used == 0) {
+            fs_strcpy(super_block.inode_table[i].name, name);
+            super_block.inode_table[i].used = 1;
+            super_block.inode_table[i].type = 1; // MARCA COMO PASTA
+            super_block.inode_table[i].parent_inode = current_dir_inode;
+            super_block.free_inodes--;
+            return 0;
+        }
+    }
+    return -1;
+}
+
+
+int fs_cd(char *name) {
+    // Caso especial: "cd .." volta para o pai
+    if (fs_strcmp(name, "..") == 0) {
+        if (current_dir_inode != -1) {
+            current_dir_inode = super_block.inode_table[current_dir_inode].parent_inode;
+        }
+        return 0;
+    }
+
+    // Procura a pasta pelo nome dentro do diretório atual
+    for (int i = 0; i < FS_MAX_FILES; i++) {
+        if (super_block.inode_table[i].used == 1 &&
+            super_block.inode_table[i].type == 1 && // Deve ser pasta
+            super_block.inode_table[i].parent_inode == current_dir_inode &&
+            fs_strcmp(super_block.inode_table[i].name, name) == 0) {
+
+            current_dir_inode = i; // Entra na pasta
+            return 0;
+        }
+    }
+    return -1; // Pasta não encontrada
 }

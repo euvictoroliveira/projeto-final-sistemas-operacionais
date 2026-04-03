@@ -68,6 +68,19 @@ void shell_execute_command() {
         }
     }
 
+    // COMANDO: mkdir (Criar deretório)
+    else if (utils_strncmp(command_buffer, "mkdir ", 6) == 0) {
+        fs_mkdir(&command_buffer[6]);
+    }
+
+    // COMANDO: cd (Mudar de diretório)
+    else if (utils_strncmp(command_buffer, "cd ", 3) == 0) {
+        if (fs_cd(&command_buffer[3]) != 0) {
+            fb_write("Erro: Diretorio nao encontrado.", 31);
+        }
+    }
+
+
     else {
         fb_write("Comando desconhecido: ", 22);
         fb_write(command_buffer, strlen(command_buffer));
