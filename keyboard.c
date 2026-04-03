@@ -3,6 +3,7 @@
 #include "io.h"
 #include "serial.h"
 #include "fb.h"
+#include "shell.h"
 
 /* O nosso Dicionário: O índice do array é o scancode, o valor é o ASCII */
 unsigned char keyboard_map[128] = {
@@ -23,10 +24,6 @@ unsigned char keyboard_map[128] = {
     /* O restante (59 a 127) será preenchido com zeros automaticamente pelo C */
 };
 
-/* Variável estática para lembrar a posição do cursor na tela. 
-   O valor 80 significa que vamos começar a digitar na segunda linha 
-   (pois a primeira linha tem 80 colunas e já tem a mensagem de boas-vindas) */
-static unsigned int cursor_pos = 80;
 
 void keyboard_handle_scancode() {
     /* Lemos o scancode da porta 0x60 */
@@ -38,28 +35,10 @@ void keyboard_handle_scancode() {
         /* Busca a letra real no nosso dicionário */
         char ascii = keyboard_map[scancode];
 
-        /* Se for um caractere válido, enviamos para os logs */
+        /* Se for um caractere válido, não escrevemos mais na tela aqui.
+           Nós simplesmente enviamos o caractere para a "esteira" do Shell! */
         if (ascii != 0) {
-
-          if(ascii == '\b') {
-            /*Só apaga se o cursor estiver na linha 1*/
-            if(cursor_pos > 80){
-            fb_backspace(cursor_pos); // Chama a função de apagar a letra
-            cursor_pos--;             // Volta o cursor
-            }
-          } else {
-
-            char str[2] = {ascii, '\0'}; /* Cria uma mini-string para imprimir */
-            serial_write(SERIAL_COM1_BASE, str, 1 );
-
-            /* 2. Imprime na tela do Bochs (Mão Direita) */
-            /* 2 = Verde, 0 = Fundo Preto */
-            fb_write_cell(cursor_pos, ascii, 2, 0);
-
-            /* 3. Avança a posição do cursor e move o bloquinho piscante */
-            cursor_pos++;
-            fb_move_cursor(cursor_pos);
-          }
+            shell_handle_keypress(ascii); 
         }
     }
 }

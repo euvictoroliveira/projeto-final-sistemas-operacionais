@@ -8,7 +8,7 @@
 #include "vmm.h"
 #include "kheap.h"
 #include "fs.h"
-
+#include "shell.h"
 
 /* Importando os símbolos gerados dinamicamente pelo Linker Script */
 extern char kernel_virtual_start[];
@@ -73,240 +73,21 @@ void kmain(unsigned int ebx) {
     // 5.4. INICIALIZAÇÃO DO PMM (BITMAP)
     // O Bitmap será construído na RAM exatamente a partir de 'end_virt'
     pmm_init(mbinfo, start_phys, end_phys, end_virt);
-
-
-    // --- FIM DA BLINDAGEM ---
-
-    /* 6. mods_addr aponta para uma lista de módulos (multiboot_module_t).
-          Nós precisamos acessar o primeiro item dessa lista para pegar o mod_start! */
-    multiboot_module_t *modules = (multiboot_module_t *) (mbinfo->mods_addr + 0xC0000000);
-    unsigned int address_of_module = modules->mod_start + 0xC0000000;
-
-    /* 7. O Salto de Fé! Define o ponteiro de função e pula para o endereço do módulo */
-    typedef void (*call_module_t)(void);
-    call_module_t start_program = (call_module_t) address_of_module;
-
-
-    // Pegando os endereços exatos onde o Kernel começa e termina
-    unsigned int start_addr = (unsigned int) kernel_virtual_start;
-    unsigned int end_addr   = (unsigned int) kernel_virtual_end;
-
-    // Calculando o peso do Kernel na RAM
-    unsigned int kernel_size_bytes = end_addr - start_addr;
-    unsigned int kernel_size_kb    = kernel_size_bytes / 1024;
-
-
-    // --- INÍCIO DA VARREDURA DE MÓDULOS ---
-    unsigned int total_modules_size_bytes = 0;
-
-    /* O ponteiro 'modules' funciona como um array. Vamos varrer todos os módulos 
-       que o GRUB carregou (mesmo que seja apenas 1 por enquanto). */
-    for (unsigned int i = 0; i < mbinfo->mods_count; i++) {
-        unsigned int mod_inicio = modules[i].mod_start;
-        unsigned int mod_fim    = modules[i].mod_end;
-
-        // Acumula o tamanho (Fim - Início) na nossa variável total
-        total_modules_size_bytes += (mod_fim - mod_inicio);
-    }
-
-    unsigned int total_modules_size_kb = total_modules_size_bytes / 1024;
-    // --- FIM DA VARREDURA ---
-
-    // Exibição do tamanho de memória que o Kernel ocupa
-    // Criamos buffers para guardar os textos gerados (32 caracteres é mais que suficiente)
-    char buffer_kernel[32];
-    char buffer_modulos[32];
-
-    // Convertemos os números (na base 10) para texto
-    itoa(kernel_size_kb, buffer_kernel, 10);
-    itoa(total_modules_size_kb, buffer_modulos, 10);
-
-    // Imprimimos o peso do Kernel
-    fb_write("Tamanho do Kernel (KB): ", 24);
-    fb_write(buffer_kernel, strlen(buffer_kernel));
-
-    // Podemos improvisar uma quebra de linha ou espaço aqui, dependendo de como
-    // está o seu fb_write. Se o seu fb_write não pular linha automático, imprima um espaço:
-    fb_write(" | ", 3);
-
-    // Imprimimos o peso dos Módulos
-    fb_write("Tamanho dos Modulos (KB): ", 26);
-    fb_write(buffer_modulos, strlen(buffer_modulos));
-
-    // ====================================================
-    // TESTE DO GERENCIADOR FÍSICO DE MEMÓRIA (PMM)
-    // ====================================================
-
-    // 1. Alocando 3 quadros físicos de 4 KB
-    unsigned int frame1 = pmm_alloc_frame();
-    unsigned int frame2 = pmm_alloc_frame();
-    unsigned int frame3 = pmm_alloc_frame();
-
-    char buf[32]; // Buffer para converter os números
-
-    // Imprime o endereço do Frame 1 (Pula linha com um divisor)
-    fb_write("\n\nF1: 0x", 9);
-    itoa(frame1, buf, 16); // O '16' transforma o número em formato Hexadecimal!
-    fb_write(buf, strlen(buf));
-
-    // Imprime o endereço do Frame 2
-    fb_write(" F2: 0x", 7);
-    itoa(frame2, buf, 16);
-    fb_write(buf, strlen(buf));
-
-    // Imprime o endereço do Frame 3
-    fb_write(" F3: 0x", 7);
-    itoa(frame3, buf, 16);
-    fb_write(buf, strlen(buf));
-
-    // 2. O Teste de Reciclagem (Free)
-    // Vamos liberar o quadro do meio
-    pmm_free_frame(frame2);
-
-    // Agora pedimos um quadro novo. O PMM DEVE reaproveitar a vaga do Frame 2!
-    unsigned int frame4 = pmm_alloc_frame();
-
-    fb_write(" | Reciclado: 0x", 16);
-    itoa(frame4, buf, 16);
-    fb_write(buf, strlen(buf));
-
-    // ====================================================
-
-    // ====================================================
-    // TESTE DO GERENCIADOR VIRTUAL E KERNEL HEAP (Gestor Auto)
-    // ====================================================
-
-    // 1. Inicializa o nosso Bairro do Heap (O estoque inicial de 4 KB em 0xD0000000)
     kheap_init();
 
-    // Pula uma linha no Framebuffer para não embolar com o teste do PMM
-    // Preencha com espaços se o seu fb_write não aceitar '\n' corretamente
-    fb_write("\n\n", 7);
-
-    // TESTE 1: A Primeira Alocação
-    struct Veiculo *carro1 = (struct Veiculo *) kmalloc(sizeof(struct Veiculo));
-    if (carro1 != 0) {
-        carro1->id = 101;
-        fb_write("C1: 0x", 6);
-        itoa((unsigned int)carro1, buf, 16); // Imprime o endereço Virtual!
-        fb_write(buf, strlen(buf));
-    }
-
-    // TESTE 2: A Fatiadora em Ação
-    struct Veiculo *carro2 = (struct Veiculo *) kmalloc(sizeof(struct Veiculo));
-    if (carro2 != 0) {
-        carro2->id = 102;
-        fb_write(" | C2: 0x", 9);
-        itoa((unsigned int)carro2, buf, 16);
-        fb_write(buf, strlen(buf));
-    }
-
-    // TESTE 3: A Reciclagem Inteligente (kfree)
-    kfree(carro1);
-
-    struct Veiculo *carro3 = (struct Veiculo *) kmalloc(sizeof(struct Veiculo));
-    if (carro3 != 0) {
-        carro3->id = 103;
-        fb_write(" | C3(Reciclado): 0x", 20);
-        itoa((unsigned int)carro3, buf, 16);
-        fb_write(buf, strlen(buf));
-    }
-    // ====================================================
-
-    // ====================================================
-    // TESTE DO SISTEMA DE ARQUIVOS (RAMFS)
-    // ====================================================
-    char *msg_fs_inicio = "\n\n--- TESTE DO RAMFS ---\n";
-    fb_write(msg_fs_inicio, strlen(msg_fs_inicio));
-
-    // 1. Inicializa o Disco Virtual (Isso vai chamar o kmalloc internamente)
+    // Inicializa o Disco Virtual na RAM
     fs_init();
 
-    // 1. Pegamos o endereço físico/virtual onde a tabela de Inodes começa
-    unsigned int addr_tabela = (unsigned int)super_block.inode_table;
+    // Limpa a tela para começar o terminal limpo
+    fb_clear_screen();
 
-    char buf_hex[16]; // Buffer para guardar a string hexadecimal
-    itoa(addr_tabela, buf_hex, 16); // Converte o endereço para BASE 16
-
-    fb_write("\nEndereço Inode Table: 0x\n", 25);
-    fb_write(buf_hex, strlen(buf_hex));
-
-    // 2. Teste de Criação de Arquivos
-
-
-    int res1 = fs_create("carros_estoque.db");
-    if (res1 == 0) {
-        char *msg_c1 = "\nCriado: carros_estoque.db \n";
-        fb_write(msg_c1, strlen(msg_c1));
-    }
-
-    int res2 = fs_create("vendas_mensais.txt");
-    if (res2 == 0) {
-        char *msg_c2 = "\nCriado: vendas_mensais.txt \n";
-        fb_write(msg_c2, strlen(msg_c2));
-    }
-
-    int res3 = fs_create("logs_sistema.log");
-    if (res3 == 0) {
-        char *msg_c3 = "\nCriado: logs_sistema.log\n\n";
-        fb_write(msg_c3, strlen(msg_c3));
-    }
-
-
-
-    // Deleta apenas um deles para ver se a listagem ignora ele
-    int res4 = fs_delete("vendas_mensais.txt");
-    if (res4 == 0) {
-        char *msg_d1 = "\nDeletado: vendas_mensais.txt\n\n";
-        fb_write(msg_d1, strlen(msg_d1));
-    }
-
-
-    // Chama a listagem!
-    // A tela deve mostrar apenas "carros_estoque.db" e "logs_sistema.log"
-    fs_list();
-    // ====================================================
-
-
-    // ====================================================
-    // TESTE DE ESCRITA (fs_write)
-    // ====================================================
-
-    // 1. Preparamos o dado que queremos salvar no nosso banco de dados
-    char *dado_carro = "ID: 101 | Modelo: Civic | Ano: 2024 | Preco: 120000";
-    unsigned int tamanho_dado = strlen(dado_carro);
-
-    // 2. Chamamos a função de escrita
-    int status_write = fs_write("carros_estoque.db", dado_carro, tamanho_dado);
-
-    // 3. Imprimimos o resultado na tela
-    if (status_write == 0) {
-        fb_write("\n[OK] Dados gravados com sucesso no arquivo 'carros_estoque.db'", 64);
-    } else {
-        fb_write("\n[ERRO] Falha ao gravar dados.", 30);
-    }
-    // ====================================================
-
-
-    // ====================================================
-    // TESTE DE LEITURA E EXIBIÇÃO (fs_read)
-    // ====================================================
-    char buffer_leitura[512]; // Criamos um array vazio com o tamanho máximo de 1 bloco
-
-    // Tentamos ler o arquivo que acabamos de gravar
-    int bytes_lidos = fs_read("carros_estoque.db", buffer_leitura);
-
-    if (bytes_lidos > 0) {
-        char *msg_leitura = "\n--- CONTEUDO DO ARQUIVO ---\n";
-        fb_write(msg_leitura, strlen(msg_leitura));
-
-        // Imprime o conteúdo exato que o fs_read trouxe da Zona de Dados!
-        fb_write(buffer_leitura, strlen(buffer_leitura));
-    } else {
-        fb_write("[ERRO] Arquivo nao encontrado para leitura.\n", 44);
-    }
-    // ====================================================
-
+    // Inicia o terminal
+    shell_init();
 
     // start_program(); // A CPU pula para o program.s aqui e nunca mais volta!
+
+    // Loop infinito de segurança para o Kernel não desligar
+    for(;;) {
+        __asm__("hlt");
+    }
 }
