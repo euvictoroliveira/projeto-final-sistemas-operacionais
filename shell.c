@@ -58,7 +58,7 @@ void shell_execute_command() {
         char *filename = &command_buffer[6]; // O nome começa após o espaço
         if (fs_create(filename) == 0) {
         } else {
-            fb_write("Erro ao criar arquivo.", 22);
+            fb_write("Erro ao criar arquivo.\n", 23);
         }
     }
 
@@ -67,7 +67,7 @@ void shell_execute_command() {
         char *filename = &command_buffer[3];
         if (fs_delete(filename) == 0) {
         } else {
-            fb_write("Erro: arquivo nao encontrado.", 29);
+            fb_write("Erro: arquivo nao encontrado.\n", 30);
         }
     }
 
@@ -79,14 +79,40 @@ void shell_execute_command() {
             // Se a pasta foi criada com sucesso, navegamos para ela na mesma hora!
             fs_cd(dirname);
         } else {
-            fb_write("Erro ao criar o diretorio.", 26);
+            fb_write("Erro ao criar o diretorio.\n", 27);
         }
     }
+
+
+// COMANDO: rm (Remover arquivo)
+    else if (utils_strncmp(command_buffer, "rm ", 3) == 0) {
+        char *filename = &command_buffer[3];
+        if (fs_delete(filename) == 0) {
+            fb_write("Arquivo removido.\n", 18); // <-- \n adicionado
+        } else {
+            fb_write("Erro: arquivo nao encontrado.\n", 30); // <-- \n adicionado
+        }
+    }
+
+    // COMANDO: rmdir (Remover diretório)
+    else if (utils_strncmp(command_buffer, "rmdir ", 6) == 0) {
+        char *dirname = &command_buffer[6];
+        int res = fs_rmdir(dirname);
+
+        if (res == 0) {
+            fb_write("Diretorio removido.\n", 20);
+        } else if (res == -2) {
+            fb_write("Erro: Diretorio nao esta vazio.\n", 32);
+        } else {
+            fb_write("Erro: Diretorio nao encontrado.\n", 32);
+        }
+    }
+
 
     // COMANDO: cd (Mudar de diretório)
     else if (utils_strncmp(command_buffer, "cd ", 3) == 0) {
         if (fs_cd(&command_buffer[3]) != 0) {
-            fb_write("Erro: Diretorio nao encontrado.", 31);
+            fb_write("Erro: Diretorio nao encontrado.\n", 32);
         }
     }
 
@@ -111,12 +137,12 @@ void shell_execute_command() {
             int res = fs_write(filename, content, strlen(content));
             if (res == 0) {
             } else if (res == -1) {
-                fb_write("Erro: O dado excede o bloco (512b).", 35);
+                fb_write("Erro: O dado excede o bloco (512b).\n", 36);
             } else {
-                fb_write("Erro: Arquivo nao encontrado.", 29);
+                fb_write("Erro: Arquivo nao encontrado.\n", 30);
             }
         } else {
-            fb_write("Uso: write <arquivo> <texto>", 28);
+            fb_write("Uso: write <arquivo> <texto>\n", 29);
         }
     }
 
@@ -134,7 +160,7 @@ void shell_execute_command() {
 
 	    fb_write("\n", 1);
         } else {
-            fb_write("Erro: Arquivo nao encontrado.", 29);
+            fb_write("Erro: Arquivo nao encontrado.\n", 30);
 
 	    fb_write("\n", 1);
         }
@@ -143,6 +169,7 @@ void shell_execute_command() {
     else {
         fb_write("Comando desconhecido: ", 22);
         fb_write(command_buffer, strlen(command_buffer));
+	fb_write("\n", 1);
     }
 
     // Prepara para o próximo comando (se não foi um clear)
