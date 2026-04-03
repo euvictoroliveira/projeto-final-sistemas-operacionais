@@ -46,3 +46,14 @@ void itoa(unsigned int num, char* str, int base) {
     // Inverte a string para a ordem correta
     reverse(str, i);
 }
+
+
+int utils_strncmp(const char *s1, const char *s2, unsigned int n) {
+    while (n > 0 && *s1 && (*s1 == *s2)) {
+        s1++;
+        s2++;
+        n--;
+    }
+    if (n == 0) return 0;
+    return *(unsigned char *)s1 - *(unsigned char *)s2;
+}

@@ -46,8 +46,8 @@ void fb_move_cursor(unsigned short pos) {
 void fb_write_cell(unsigned int i, char c, unsigned char fg, unsigned char bg) {
     fb[i * 2] = c;
     fb[(i * 2) + 1] = ((bg & 0x0F) << 4) | (fg & 0x0F);
-}
 
+}
 /* Função principal para escrever textos inteiros na tela */
 void fb_write(char *buf, unsigned int len) {
     unsigned int i;
@@ -63,17 +63,20 @@ void fb_write(char *buf, unsigned int len) {
             cursor_pos++;
         }
     }
-
+    // IMPORTANTE: Atualiza o cursor piscante na tela após escrever a string
+    fb_move_cursor(cursor_pos);
 }
 
-void fb_backspace(unsigned int pos){
-    if(pos > 0){
-        unsigned int new_pos = pos - 1;
-        /* Sobre Escreve com espaço vazio e depois coloca o curso nessa posição
-        Mantendo o fundo preto e a cor da letra*/
-        fb_write_cell(new_pos, ' ', FB_GREEN, FB_BLACK);
-        /* Recua o ponteiro */
-        fb_move_cursor(new_pos);
+/* Função para apagar o último caractere (Backspace) */
+void fb_backspace(){
+    // Garante que não vamos apagar além do início da tela
+    if(cursor_pos > 0){
+        cursor_pos--; // Recua a posição global do cursor
+
+        /* Sobrescreve com espaço vazio mantendo o fundo preto */
+        fb_write_cell(cursor_pos, ' ', FB_GREEN, FB_BLACK);
+
+        /* Recua o ponteiro piscante na tela */
+        fb_move_cursor(cursor_pos);
     }
 }
-
