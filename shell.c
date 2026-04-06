@@ -84,7 +84,7 @@ void shell_execute_command() {
     }
 
 
-// COMANDO: rm (Remover arquivo)
+    // COMANDO: rm (Remover arquivo)
     else if (utils_strncmp(command_buffer, "rm ", 3) == 0) {
         char *filename = &command_buffer[3];
         if (fs_delete(filename) == 0) {
@@ -165,6 +165,48 @@ void shell_execute_command() {
 	    fb_write("\n", 1);
         }
     }
+
+
+    // COMANDO: grep (Busca de texto dentro de arquivos)
+    else if (utils_strncmp(command_buffer, "grep ", 5) == 0) {
+        char *args = &command_buffer[5];
+        char *search_term = args;
+        char *filename = 0;
+
+        // 1. Separa o termo do nome do arquivo procurando o espaço
+        for (int i = 0; args[i] != '\0'; i++) {
+            if (args[i] == ' ') {
+                args[i] = '\0'; // Corta a string
+                filename = &args[i + 1]; // O nome do arquivo vem depois
+                break;
+            }
+        }
+
+        if (filename != 0) {
+            char file_buf[512]; // Buffer temporário para leitura
+            int bytes = fs_read(filename, file_buf);
+
+            if (bytes >= 0) {
+                // 2. Chama o nosso motor de busca!
+                char *match = utils_strstr(file_buf, search_term);
+
+                if (match != 0) {
+                    fb_write("Padrao encontrado no arquivo!\n", 30);
+                    // Como o professor pediu o grep, vamos imprimir o conteúdo
+                    fb_write("Conteudo: ", 10);
+                    fb_write(file_buf, strlen(file_buf));
+                    fb_write("\n", 1);
+                } else {
+                    fb_write("Padrao nao encontrado.\n", 23);
+                }
+            } else {
+                fb_write("Erro: Arquivo nao encontrado.\n", 30);
+            }
+        } else {
+            fb_write("Uso: grep <termo> <arquivo>\n", 28);
+        }
+    }
+
 
     else {
         fb_write("Comando desconhecido: ", 22);

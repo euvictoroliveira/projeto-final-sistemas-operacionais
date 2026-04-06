@@ -57,3 +57,34 @@ int utils_strncmp(const char *s1, const char *s2, unsigned int n) {
     if (n == 0) return 0;
     return *(unsigned char *)s1 - *(unsigned char *)s2;
 }
+
+// Procura a agulha (needle) no palheiro (haystack)
+char* utils_strstr(const char *haystack, const char *needle) {
+    if (!*needle) return (char *)haystack;
+
+    for (; *haystack; haystack++) {
+        if (*haystack == *needle) {
+            const char *h = haystack;
+            const char *n = needle;
+
+            while (*h && *n && *h == *n) {
+                h++;
+                n++;
+            }
+
+            if (!*n) return (char *)haystack;
+
+        }
+    }
+    return 0;
+}
+
+// Retorna a posição do caractere no buffer, ou -1 se não encontrar
+int utils_find_char(const char *str, char delimiter, int start_pos) {
+    for (int i = start_pos; str[i] != '\0'; i++) {
+        if (str[i] == delimiter) {
+            return i;
+        }
+    }
+    return -1;
+}

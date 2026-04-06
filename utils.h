@@ -27,4 +27,6 @@ void reverse(char str[], int length);
  */
 void itoa(unsigned int num, char* str, int base);
 
+char* utils_strstr(const char *haystack, const char *needle);
+
 #endif // UTILS_H
