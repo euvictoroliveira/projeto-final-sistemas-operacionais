@@ -147,61 +147,91 @@ void shell_execute_command() {
     }
 
 
-    // COMANDO: grep <padrao> <arquivo>
+    // COMANDO: grep <padrao> <caminho/do/arquivo>
     else if (utils_strncmp(command_buffer, "grep ", 5) == 0) {
         char *args = &command_buffer[5];
         char *search_term = args;
-        char *filename = 0;
+        char *full_path = 0;
 
-        // 1. Separa o termo do nome do arquivo (procurando o primeiro espaço)
+        // 1. Separa o termo de busca do caminho fornecido
         for (int i = 0; args[i] != '\0'; i++) {
             if (args[i] == ' ') {
                 args[i] = '\0';
-                filename = &args[i + 1];
+                full_path = &args[i + 1];
                 break;
             }
         }
 
-        if (filename != 0) {
-            char file_buf[512]; // Buffer para ler o conteúdo do arquivo
-            int bytes = fs_read(filename, file_buf);
+        if (full_path != 0) {
+            char *dir_name = 0;
+            char *actual_file = full_path;
 
+            // 2. ANALISADOR DE CAMINHO (Path Parser)
+            // Procura pela barra '/' para fatiar o caminho em Pasta e Arquivo
+            for (int i = 0; full_path[i] != '\0'; i++) {
+                if (full_path[i] == '/') {
+                    full_path[i] = '\0'; // Corta a string aqui
+                    dir_name = full_path; // A primeira parte vira o diretório
+                    actual_file = &full_path[i + 1]; // A segunda parte vira o arquivo
+                    break;
+                }
+            }
+
+            // 3. TROCA DE CONTEXTO SILENCIOSA
+            int dir_changed = 0;
+            if (dir_name != 0) {
+                // Tenta "entrar" na pasta invisivelmente
+                // OBS: Troque 'fs_cd' pelo nome real da sua função, se necessário!
+                if (fs_cd(dir_name) == 0) { 
+                    dir_changed = 1;
+                } else {
+                    fb_write("Erro: Diretorio do caminho nao encontrado.\n", 43);
+                    goto end_grep; // Aborta a operação pulando para o final
+                }
+            }
+
+            char file_buf[512];
+            // 4. LÊ O ARQUIVO (Na pasta atual, que pode ter acabado de mudar)
+            int bytes = fs_read(actual_file, file_buf);
+
+            // 5. RESTAURA O CONTEXTO (A viagem de volta)
+            if (dir_changed) {
+                fs_cd(".."); // Volta ao diretório pai
+            }
+
+            // 6. A LÓGICA DO MOTOR DE BUSCA (A mesma de antes)
             if (bytes >= 0) {
                 char *token_start = file_buf;
-                int found_count = 0;
+                int found = 0;
 
-                // 2. O SCANNER: Percorre o arquivo inteiro buscando todos os registros
                 for (int i = 0; ; i++) {
-                    // Identificamos o fim de uma "linha" (vírgula ou fim do arquivo)
                     if (file_buf[i] == ',' || file_buf[i] == '\0') {
                         char backup = file_buf[i];
-                        file_buf[i] = '\0'; // "Corta" a string temporariamente para análise
+                        file_buf[i] = '\0';
 
-                        // 3. A BUSCA: Verifica se o padrão existe dentro deste registro específico
                         if (utils_strstr(token_start, search_term) != 0) {
-                            // Se encontrou, imprime a linha e continua o loop!
                             fb_write(token_start, strlen(token_start));
                             fb_write("\n", 1);
-                            found_count++;
+                            found = 1;
                         }
 
-                        // Se chegamos ao fim real do arquivo, encerramos o loop global
                         if (backup == '\0') break;
-
-                        // Caso contrário, restauramos o separador e preparamos o próximo token
+                        
                         file_buf[i] = backup;
                         token_start = &file_buf[i + 1];
                     }
                 }
 
-                if (found_count == 0) {
-                    fb_write("Nenhuma correspondencia encontrada.\n", 36);
+                if (!found) {
+                    fb_write("Padrao nao encontrado.\n", 23);
                 }
             } else {
                 fb_write("Erro: Arquivo nao encontrado.\n", 30);
             }
+
+            end_grep:; // Rótulo de escape caso a pasta inicial não exista
         } else {
-            fb_write("Uso: grep <padrao> <arquivo>\n", 29);
+            fb_write("Uso: grep <padrao> <pasta/arquivo>\n", 35);
         }
     }
 
