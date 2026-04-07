@@ -114,3 +114,46 @@ int utils_find_char(const char *str, char delimiter, int start_pos) {
     }
     return -1;
 }
+
+
+/**
+ * Resolve caminhos absolutos e relativos, navegando silenciosamente pelo VFS.
+ * @param full_path O caminho digitado pelo usuário (ex: pasta/sub/arq.txt)
+ * @param target_name Um ponteiro que será atualizado para apontar para o nome final (arq.txt)
+ * @return O Inode original (para restauração) ou -1 em caso de erro no caminho.
+ */
+int utils_resolve_path(char *full_path, char **target_name) {
+    int original_inode = fs_get_current_dir();
+    int is_absolute = 0;
+
+    if (full_path[0] == '/') {
+        is_absolute = 1;
+        full_path++; 
+    }
+
+    if (is_absolute) {
+        fs_set_current_dir(-1); // Força ida para a raiz
+    }
+
+    char *current_token = full_path;
+    *target_name = full_path; // Por padrão, o alvo é a string inteira
+
+    for (int i = 0; full_path[i] != '\0'; i++) {
+        if (full_path[i] == '/') {
+            full_path[i] = '\0'; // Fatiador
+            
+            if (current_token[0] != '\0') {
+                if (fs_cd(current_token) != 0) {
+                    // ERRO: Uma pasta no meio do caminho não existe.
+                    fs_set_current_dir(original_inode); // Aborta e restaura
+                    return -2; 
+                }
+            }
+            
+            current_token = &full_path[i + 1];
+            *target_name = current_token; // Atualiza o nome final a cada barra
+        }
+    }
+
+    return original_inode; // Sucesso! Retorna de onde viemos.
+}

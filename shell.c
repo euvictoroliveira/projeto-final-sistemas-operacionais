@@ -54,112 +54,36 @@ void shell_execute_command() {
 
     // COMANDO: touch (Criar arquivo com suporte a caminhos multi-nível)
     else if (utils_strncmp(command_buffer, "touch ", 6) == 0) {
-        char *full_path = &command_buffer[6];
-        int is_absolute = 0;
+        char *target = 0;
+        int original = utils_resolve_path(&command_buffer[6], &target);
 
-        // 1. Verifica se é Caminho Absoluto
-        if (full_path[0] == '/') {
-            is_absolute = 1;
-            full_path++; 
+        // O sucesso agora aceita o -1 (Raiz) e só rejeita o -2 (Erro de Rota)
+        if (original != -2 && target[0] != '\0') {
+            int res = fs_create(target);
+            if (res == 0) fb_write("Arquivo criado.\n", 16);
+            else if (res == -1) fb_write("Erro: Tabela cheia.\n", 20);
+            else if (res == -3) fb_write("Erro: Nome ja em uso.\n", 22);
+            
+            fs_set_current_dir(original); // Restaura Contexto
+        } 
+        // O erro agora é exclusivamente associado ao código -2
+        else if (original == -2) {
+            fb_write("Erro: Caminho invalido.\n", 24);
         }
-
-        // 2. Salva o contexto (onde o usuário está agora)
-        int original_inode = fs_get_current_dir();
-        if (is_absolute) fs_set_current_dir(-1); 
-
-        char *actual_file = full_path;
-        int path_error = 0;
-        char *current_token = full_path;
-
-        // 3. O NOVO ANALISADOR MULTI-NÍVEL (Sem o 'break' na primeira barra!)
-        for (int i = 0; full_path[i] != '\0'; i++) {
-            if (full_path[i] == '/') {
-                full_path[i] = '\0'; // Corta a string na barra atual
-                
-                // Se o nome da pasta não for vazio (evita erros se o usuário digitar //)
-                if (current_token[0] != '\0') {
-                    // Tenta entrar na pasta recém-cortada
-                    if (fs_cd(current_token) != 0) {
-                        fb_write("Erro: Diretorio intermediario nao encontrado.\n", 46);
-                        path_error = 1;
-                        break; // Aborta a viagem se uma pasta no meio do caminho não existir
-                    }
-                }
-                
-                // Prepara o próximo token (o que vem depois da barra)
-                current_token = &full_path[i + 1];
-                actual_file = current_token; // O arquivo é sempre o último token
-            }
-        }
-
-        // 4. Executa a ação final (se a viagem deu certo e sobrou um nome de arquivo)
-        if (!path_error && actual_file[0] != '\0') {
-            int res = fs_create(actual_file);
-            if (res == 0) {
-                fb_write("Arquivo criado.\n", 16);
-            } else if (res == -1) {
-                fb_write("Erro: Tabela de arquivos cheia.\n", 32);
-            } else if (res == -3) {
-                fb_write("Erro: Nome ja em uso.\n", 22);
-            }
-        }
-
-        // 5. Restaura o usuário para a pasta de onde ele enviou o comando
-        fs_set_current_dir(original_inode);
     }
 
     // COMANDO: rm (Remover arquivo com suporte a caminhos)
     else if (utils_strncmp(command_buffer, "rm ", 3) == 0) {
-        char *full_path = &command_buffer[3];
-        char *dir_name = 0;
-        char *actual_file = full_path;
-        int is_absolute = 0;
+        char *target = 0;
+        int original = utils_resolve_path(&command_buffer[3], &target);
 
-        // 1. Verifica se é Caminho Absoluto (Ex: /teste.txt)
-        if (full_path[0] == '/') {
-            is_absolute = 1;
-            full_path++; // Pula a primeira barra
-            actual_file = full_path;
+        if (original != -2 && target[0] != '\0') {
+            if (fs_delete(target) == 0) fb_write("Arquivo removido.\n", 18);
+            else fb_write("Erro: arquivo nao encontrado.\n", 30);
+            fs_set_current_dir(original);
+        } else if (original == -2) {
+            fb_write("Erro: Caminho invalido.\n", 24);
         }
-
-        // 2. Fatiador de Caminho (Ex: pasta/teste.txt)
-        for (int i = 0; full_path[i] != '\0'; i++) {
-            if (full_path[i] == '/') {
-                full_path[i] = '\0';
-                dir_name = full_path;
-                actual_file = &full_path[i + 1];
-                break;
-            }
-        }
-
-        // 3. SALVA O ESTADO ATUAL (Context Save)
-        int original_inode = fs_get_current_dir();
-
-        // Se for absoluto, forçamos a ida para a Raiz
-        if (is_absolute) {
-            fs_set_current_dir(-1); 
-        }
-
-        // 4. NAVEGAÇÃO SILENCIOSA
-        int path_error = 0;
-        if (dir_name != 0) {
-            if (fs_cd(dir_name) != 0) {
-                fb_write("Erro: Diretorio do caminho nao encontrado.\n", 43);
-                path_error = 1; // Marca que deu erro para não tentar apagar
-            }
-        }
-
-        // 5. EXECUÇÃO DA AÇÃO
-        if (!path_error) {
-            if (fs_delete(actual_file) == 0) {
-                fb_write("Arquivo removido.\n", 18);
-            } else {
-                fb_write("Erro: arquivo nao encontrado.\n", 30);
-            }
-        }
-
-        // 6. RESTAURA O ESTADO (Context Restore)
-        fs_set_current_dir(original_inode);
     }
 
     // COMANDO: mkdir (Criar deretório e entra nele)
@@ -171,17 +95,6 @@ void shell_execute_command() {
             fs_cd(dirname);
         } else {
             fb_write("Erro ao criar o diretorio.\n", 27);
-        }
-    }
-
-
-    // COMANDO: rm (Remover arquivo)
-    else if (utils_strncmp(command_buffer, "rm ", 3) == 0) {
-        char *filename = &command_buffer[3];
-        if (fs_delete(filename) == 0) {
-            fb_write("Arquivo removido.\n", 18); // <-- \n adicionado
-        } else {
-            fb_write("Erro: arquivo nao encontrado.\n", 30); // <-- \n adicionado
         }
     }
 
