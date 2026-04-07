@@ -58,6 +58,32 @@ int utils_strncmp(const char *s1, const char *s2, unsigned int n) {
     return *(unsigned char *)s1 - *(unsigned char *)s2;
 }
 
+// Converte um caractere para minúsculo (usado para a flag -i)
+char utils_tolower(char c) {
+    if (c >= 'A' && c <= 'Z') {
+        return c + 32;
+    }
+    return c;
+}
+
+// Versão do strstr que ignora maiúsculas/minúsculas
+char* utils_strcasestr(const char *haystack, const char *needle) {
+    if (!*needle) return (char *)haystack;
+
+    for (; *haystack; haystack++) {
+        if (utils_tolower(*haystack) == utils_tolower(*needle)) {
+            const char *h = haystack;
+            const char *n = needle;
+            while (*h && *n && utils_tolower(*h) == utils_tolower(*n)) {
+                h++;
+                n++;
+            }
+            if (!*n) return (char *)haystack;
+        }
+    }
+    return 0;
+}
+
 // Procura a agulha (needle) no palheiro (haystack)
 char* utils_strstr(const char *haystack, const char *needle) {
     if (!*needle) return (char *)haystack;

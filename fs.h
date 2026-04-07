@@ -20,8 +20,6 @@ typedef struct {
     int parent_inode;         // Índice do Inode da pasta que contém este arquivo
 } inode_t;
 
-// No topo do fs.c, crie uma variável para rastrear onde o usuário está "pisando"
-static int current_dir_inode = -1; // -1 significa a RAIZ (Root)
 
 
 // 2. A ESTRUTURA DO SUPERBLOCO (O Gerenciador)
@@ -51,5 +49,8 @@ int fs_mkdir(char *name);
 int fs_cd(char *name);
 char* fs_get_cwd_path();
 int fs_rmdir(char *name);
+
+int fs_get_current_dir();
+void fs_set_current_dir(int inode);
 
 #endif

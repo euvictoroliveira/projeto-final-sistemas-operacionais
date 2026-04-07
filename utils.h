@@ -27,6 +27,10 @@ void reverse(char str[], int length);
  */
 void itoa(unsigned int num, char* str, int base);
 
+char utils_tolower(char c);
+
+char* utils_strcasestr(const char *haystack, const char *needle);
+
 char* utils_strstr(const char *haystack, const char *needle);
 
 int utils_strncmp(const char *s1, const char *s2, unsigned int n);
