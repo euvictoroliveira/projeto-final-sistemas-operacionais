@@ -26,7 +26,7 @@ os.iso: kernel.elf program
                 iso
 
 run: os.iso
-	bochs -f bochsrc.txt -q
+	SDL_VIDEO_X11_NOSHM=1 bochs -f bochsrc.txt -q
 
 %.o: %.c
 	$(CC) $(CFLAGS) $< -o $@

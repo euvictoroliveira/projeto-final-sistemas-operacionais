@@ -2,9 +2,9 @@
 #define FS_H
 
 // Definições do tamanho do nosso "Disco"
-#define FS_MAX_FILES 16          // Limite de arquivos no nosso disco
+#define FS_MAX_FILES 256          // Limite de arquivos no nosso disco
 #define FS_BLOCK_SIZE 512        // Cada bloco de dados terá 512 bytes
-#define FS_MAX_BLOCKS 4          // Total de blocos de dados no disco (128 KB de espaço)
+#define FS_MAX_BLOCKS 2048          // Total de blocos de dados no disco (128 KB de espaço)
 
 // A fórmula mágica para arredondar para cima!
 #define BITMAP_SIZE ((FS_MAX_BLOCKS + 31) / 32)

@@ -42,6 +42,19 @@ void fs_strcat(char *dest, const char *src) {
     *dest = '\0';
 }
 
+// Função auxiliar para evitar duplicatas
+int fs_exists(char *name) {
+    for (int i = 0; i < FS_MAX_FILES; i++) {
+        if (super_block.inode_table[i].used == 1 &&
+            super_block.inode_table[i].parent_inode == current_dir_inode &&
+            fs_strcmp(super_block.inode_table[i].name, name) == 0) {
+            return 1; // Já existe algo com esse nome aqui!
+        }
+    }
+    return 0;
+}
+
+
 // ======================================================================
 // IMPLEMENTAÇÃO DA API DO SISTEMA DE ARQUIVOS
 // ======================================================================
@@ -104,6 +117,9 @@ int fs_find_free_block() {
  */
 int fs_create(char *name) {
     if (super_block.free_inodes == 0) return -1; // Erro: Sem Inodes livres
+
+
+    if (fs_exists(name)) return -3; // Erro: Nome já em uso
 
     // 1. Procura um Inode ("RG") que não esteja sendo usado
     for (int i = 0; i < FS_MAX_FILES; i++) {
@@ -297,6 +313,8 @@ int fs_read(char *name, char *buffer) {
 
 
 int fs_mkdir(char *name) {
+   if (fs_exists(name)) return -3;
+
     for (int i = 0; i < FS_MAX_FILES; i++) {
         if (super_block.inode_table[i].used == 0) {
             fs_strcpy(super_block.inode_table[i].name, name);

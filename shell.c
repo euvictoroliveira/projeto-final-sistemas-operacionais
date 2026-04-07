@@ -146,67 +146,90 @@ void shell_execute_command() {
         }
     }
 
-    // COMANDO: cat (Ler conteúdo de um arquivo)
-    // Exemplo: cat estoque.txt
-    else if (utils_strncmp(command_buffer, "cat ", 4) == 0) {
-        char *filename = &command_buffer[4];
-        char read_buf[512]; // Criamos um recipiente temporário na RAM
 
-        int bytes = fs_read(filename, read_buf);
-
-        if (bytes >= 0) {
-            // Se leu algo, joga direto na tela da Placa de Vídeo!
-            fb_write(read_buf, strlen(read_buf));
-
-	    fb_write("\n", 1);
-        } else {
-            fb_write("Erro: Arquivo nao encontrado.\n", 30);
-
-	    fb_write("\n", 1);
-        }
-    }
-
-
-    // COMANDO: grep (Busca de texto dentro de arquivos)
+    // COMANDO: grep <padrao> <arquivo>
     else if (utils_strncmp(command_buffer, "grep ", 5) == 0) {
         char *args = &command_buffer[5];
         char *search_term = args;
         char *filename = 0;
 
-        // 1. Separa o termo do nome do arquivo procurando o espaço
+        // 1. Separa o termo do nome do arquivo (procurando o primeiro espaço)
         for (int i = 0; args[i] != '\0'; i++) {
             if (args[i] == ' ') {
-                args[i] = '\0'; // Corta a string
-                filename = &args[i + 1]; // O nome do arquivo vem depois
+                args[i] = '\0';
+                filename = &args[i + 1];
                 break;
             }
         }
 
         if (filename != 0) {
-            char file_buf[512]; // Buffer temporário para leitura
+            char file_buf[512]; // Buffer para ler o conteúdo do arquivo
             int bytes = fs_read(filename, file_buf);
 
             if (bytes >= 0) {
-                // 2. Chama o nosso motor de busca!
-                char *match = utils_strstr(file_buf, search_term);
+                char *token_start = file_buf;
+                int found_count = 0;
 
-                if (match != 0) {
-                    fb_write("Padrao encontrado no arquivo!\n", 30);
-                    // Como o professor pediu o grep, vamos imprimir o conteúdo
-                    fb_write("Conteudo: ", 10);
-                    fb_write(file_buf, strlen(file_buf));
-                    fb_write("\n", 1);
-                } else {
-                    fb_write("Padrao nao encontrado.\n", 23);
+                // 2. O SCANNER: Percorre o arquivo inteiro buscando todos os registros
+                for (int i = 0; ; i++) {
+                    // Identificamos o fim de uma "linha" (vírgula ou fim do arquivo)
+                    if (file_buf[i] == ',' || file_buf[i] == '\0') {
+                        char backup = file_buf[i];
+                        file_buf[i] = '\0'; // "Corta" a string temporariamente para análise
+
+                        // 3. A BUSCA: Verifica se o padrão existe dentro deste registro específico
+                        if (utils_strstr(token_start, search_term) != 0) {
+                            // Se encontrou, imprime a linha e continua o loop!
+                            fb_write(token_start, strlen(token_start));
+                            fb_write("\n", 1);
+                            found_count++;
+                        }
+
+                        // Se chegamos ao fim real do arquivo, encerramos o loop global
+                        if (backup == '\0') break;
+
+                        // Caso contrário, restauramos o separador e preparamos o próximo token
+                        file_buf[i] = backup;
+                        token_start = &file_buf[i + 1];
+                    }
+                }
+
+                if (found_count == 0) {
+                    fb_write("Nenhuma correspondencia encontrada.\n", 36);
                 }
             } else {
                 fb_write("Erro: Arquivo nao encontrado.\n", 30);
             }
         } else {
-            fb_write("Uso: grep <termo> <arquivo>\n", 28);
+            fb_write("Uso: grep <padrao> <arquivo>\n", 29);
         }
     }
 
+
+    // COMANDO: cat (Leitura com quebra de linha em cada vírgula)
+    else if (utils_strncmp(command_buffer, "cat ", 4) == 0) {
+        char *filename = &command_buffer[4];
+        char read_buf[512];
+
+        int bytes = fs_read(filename, read_buf);
+
+        if (bytes >= 0) {
+            // Percorremos o buffer caractere por caractere
+            for (int i = 0; read_buf[i] != '\0'; i++) {
+                // Imprime o caractere atual (precisamos de um array temporário para o fb_write)
+                char c[2] = {read_buf[i], '\0'};
+                fb_write(c, 1);
+
+                // Se o caractere for uma vírgula, forçamos o pulo de linha
+                if (read_buf[i] == ',') {
+                    fb_write("\n", 1);
+                }
+            }
+            fb_write("\n", 1); // Pulo final para o prompt
+        } else {
+            fb_write("Erro: Arquivo nao encontrado.\n", 30);
+        }
+    }
 
     else {
         fb_write("Comando desconhecido: ", 22);
