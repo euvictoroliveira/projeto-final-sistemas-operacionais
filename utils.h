@@ -39,4 +39,6 @@ int utils_resolve_path(char *full_path, char **target_name);
 
 unsigned long long utils_read_tsc();
 
+void utils_int_to_hex_string(unsigned int num, char *str);
+
 #endif // UTILS_H

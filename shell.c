@@ -38,8 +38,7 @@ void shell_execute_command() {
 
     // COMANDO: help
     if (fs_strcmp(command_buffer, "help") == 0) {
-        fb_write("Comandos: \nls, clear, cd <dir>, touch <dir>, rm <dir>, mkdir <dir>, 
-                  rmdir <dir>, write <dir> <conteudo>, cat <dir>, grep <termo> <dir>, help\n", 141);
+        fb_write("Comandos: \nls, clear, cd <dir>, touch <dir>, rm <dir>, mkdir <dir>, rmdir <dir>, write <dir> <conteudo>, cat <dir>, grep <termo> <dir>, help\n", 141);
     }
 
     // COMANDO: clear
@@ -340,6 +339,27 @@ void shell_execute_command() {
         } else {
             fb_write("Uso: grep [-i -v -c] <termo> <caminho>\n", 39);
         }
+    }
+
+
+    // COMANDO: inodes (Exibe o endereço de memória da tabela de inodes)
+    else if (fs_strcmp(command_buffer, "inodes") == 0) {
+        // 1. Busca o endereço numérico no File System
+        unsigned int address = fs_get_inode_table_address();
+        
+        // 2. Converte para texto Hexadecimal
+        char hex_str[16];
+        utils_int_to_hex_string(address, hex_str);
+        
+        // 3. Imprime na tela com o prefixo '0x' padrão de endereços
+        fb_write("Endereco da Tabela de Inodes: 0x", 32);
+        
+        // Conta o tamanho dinâmico da string gerada
+        int len = 0;
+        while (hex_str[len] != '\0') len++;
+        
+        fb_write(hex_str, len);
+        fb_write("\n", 1);
     }
 
 

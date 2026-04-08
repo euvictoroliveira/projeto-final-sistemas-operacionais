@@ -71,6 +71,12 @@ int fs_find_inode(char *name) {
     return -1; // Não encontrou
 }
 
+// Retorna o endereço de memória (unsigned int) da Tabela de Inodes
+unsigned int fs_get_inode_table_address() {
+    // Fazemos o casting do ponteiro para um inteiro para podermos imprimir
+    return (unsigned int)super_block.inode_table;
+}
+
 // ======================================================================
 // IMPLEMENTAÇÃO DA API DO SISTEMA DE ARQUIVOS
 // ======================================================================
