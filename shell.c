@@ -38,7 +38,7 @@ void shell_execute_command() {
 
     // COMANDO: help
     if (fs_strcmp(command_buffer, "help") == 0) {
-        fb_write("Comandos: \nls, clear, cd <dir>, touch <arq>, rm <arq>, mkdir <dir>, write <arq> <conteudo>, cat <arq>, help\n", 108);
+        fb_write("Comandos: \nls, clear, cd <dir>, touch <dir>, rm <dir>, mkdir <dir>, rmdir <dir>, write <dir> <conteudo>, cat <dir>, grep <termo> <dir>, help\n", 141);
     }
 
     // COMANDO: clear
@@ -265,87 +265,79 @@ void shell_execute_command() {
     // COMANDO: grep <padrao> <caminho/do/arquivo>
     else if (utils_strncmp(command_buffer, "grep ", 5) == 0) {
         char *args = &command_buffer[5];
-        
-        // 1. Variáveis de Estado das Flags
         int flag_i = 0, flag_v = 0, flag_c = 0;
-        char *search_term = 0;
-        char *full_path = 0;
-
-        // 2. O Analisador de Flags (Lê até encontrar algo que não comece com '-')
-        char *current_arg = args;
-        while (*current_arg == '-') {
-            if (utils_strncmp(current_arg, "-i ", 3) == 0) { flag_i = 1; current_arg += 3; }
-            else if (utils_strncmp(current_arg, "-v ", 3) == 0) { flag_v = 1; current_arg += 3; }
-            else if (utils_strncmp(current_arg, "-c ", 3) == 0) { flag_c = 1; current_arg += 3; }
-            else break; // Para se não for uma flag conhecida
+        
+        while (*args == '-') {
+            if (utils_strncmp(args, "-i ", 3) == 0) { flag_i = 1; args += 3; }
+            else if (utils_strncmp(args, "-v ", 3) == 0) { flag_v = 1; args += 3; }
+            else if (utils_strncmp(args, "-c ", 3) == 0) { flag_c = 1; args += 3; }
+            else break;
         }
         
-        search_term = current_arg;
+        char *search_term = args;
+        char *path_string = 0;
 
-        // 3. Separa o termo do caminho (procurando o espaço)
         for (int i = 0; search_term[i] != '\0'; i++) {
             if (search_term[i] == ' ') {
                 search_term[i] = '\0';
-                full_path = &search_term[i + 1];
+                path_string = &search_term[i + 1];
                 break;
             }
         }
 
-        if (full_path != 0) {
-            char file_buf[512];
-            // (Lógica de Path Resolution e fs_cd que já fizemos...)
-            int bytes = fs_read(full_path, file_buf); // Simplificado para o exemplo
+        if (path_string != 0) {
+            char *target = 0;
+            int original = utils_resolve_path(path_string, &target);
 
-            if (bytes >= 0) {
-                char *token_start = file_buf;
-                int matches_found = 0;
+            if (original != -1 && target[0] != '\0') {
+                char file_buf[512];
+                int bytes = fs_read(target, file_buf);
 
-                for (int i = 0; ; i++) {
-                    if (file_buf[i] == ',' || file_buf[i] == '\0') {
-                        char backup = file_buf[i];
-                        file_buf[i] = '\0';
+                if (bytes >= 0) {
+                    char *token_start = file_buf;
+                    int matches = 0;
 
-                        // Escolhe o motor de busca baseado na flag -i
-                        char *match = (flag_i) ? utils_strcasestr(token_start, search_term) 
-                                               : utils_strstr(token_start, search_term);
+                    for (int i = 0; ; i++) {
+                        if (file_buf[i] == ',' || file_buf[i] == '\0') {
+                            char backup = file_buf[i];
+                            file_buf[i] = '\0';
 
-                        // Lógica da Flag -v (Inverter): match != 0 (achou) vs match == 0 (não achou)
-                        int is_a_match = (flag_v) ? (match == 0) : (match != 0);
+                            char *match = (flag_i) ? utils_strcasestr(token_start, search_term) 
+                                                   : utils_strstr(token_start, search_term);
 
-                        if (is_a_match) {
-                            matches_found++;
-                            // Se NÃO for a flag -c, imprime a linha
-                            if (!flag_c) {
-                                fb_write(token_start, strlen(token_start));
-                                fb_write("\n", 1);
+                            if ((flag_v) ? (match == 0) : (match != 0)) {
+                                matches++;
+                                if (!flag_c) {
+                                    fb_write(token_start, strlen(token_start));
+                                    fb_write("\n", 1);
+                                }
                             }
+
+                            if (backup == '\0') break;
+                            file_buf[i] = backup;
+                            token_start = &file_buf[i + 1];
                         }
-
-                        if (backup == '\0') break;
-                        file_buf[i] = backup;
-                        token_start = &file_buf[i + 1];
                     }
-                }
 
-                // Se for a flag -c, mostramos apenas o total
-                if (flag_c) {
-                    fb_write("Total de ocorrencias: ", 22);
-                    
-                    // Cria um buffer temporário para guardar o número em formato de texto
-                    char num_str[16]; 
-                    itoa(matches_found, num_str, 10);
-                    
-                    // Calcula o tamanho da string do número gerado
-                    int len = 0;
-                    while (num_str[len] != '\0') {
-                        len++;
+                    if (flag_c) {
+                        fb_write("Total: ", 7);
+                        char num_str[16]; 
+                        itoa(matches, num_str, 10); 
+                        int len = 0; while (num_str[len] != '\0') len++;
+                        fb_write(num_str, len);
+                        fb_write("\n", 1);
+                    } else if (matches == 0) {
+                        fb_write("Sem ocorrencias.\n", 17);
                     }
-                    
-                    // Imprime o número e pula a linha!
-                    fb_write(num_str, len);
-                    fb_write("\n", 1);
+                } else {
+                    fb_write("Erro de leitura.\n", 17);
                 }
+                fs_set_current_dir(original);
+            } else if (original == -1) {
+                fb_write("Erro: Caminho invalido.\n", 24);
             }
+        } else {
+            fb_write("Uso: grep [-i -v -c] <termo> <caminho>\n", 39);
         }
     }
 
