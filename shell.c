@@ -38,7 +38,8 @@ void shell_execute_command() {
 
     // COMANDO: help
     if (fs_strcmp(command_buffer, "help") == 0) {
-        fb_write("Comandos: \nls, clear, cd <dir>, touch <dir>, rm <dir>, mkdir <dir>, rmdir <dir>, write <dir> <conteudo>, cat <dir>, grep <termo> <dir>, help\n", 141);
+        fb_write("Comandos: \nls, clear, cd <dir>, touch <dir>, rm <dir>, mkdir <dir>, 
+                  rmdir <dir>, write <dir> <conteudo>, cat <dir>, grep <termo> <dir>, help\n", 141);
     }
 
     // COMANDO: clear

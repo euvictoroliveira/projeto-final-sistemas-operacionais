@@ -6,6 +6,8 @@
 // variável para rastrear onde o usuário está "pisando"
 static int current_dir_inode = -1; // -1 significa a RAIZ (Root)
 
+static int root_first_child = -1; // Aponta para o primeiro arquivo da raiz
+
 // Buffer global estático para guardar o texto do caminho completo
 static char full_path_buffer[256];
 
@@ -55,6 +57,19 @@ int fs_exists(char *name) {
     return 0;
 }
 
+// Função O(K) para encontrar o Inode de um arquivo na pasta atual
+int fs_find_inode(char *name) {
+    int parent_idx = fs_get_current_dir();
+    int current = (parent_idx == -1) ? root_first_child : super_block.inode_table[parent_idx].first_child;
+
+    while (current != -1) {
+        if (fs_strcmp(super_block.inode_table[current].name, name) == 0) {
+            return current; // Achou! Retorna o ID.
+        }
+        current = super_block.inode_table[current].next_sibling;
+    }
+    return -1; // Não encontrou
+}
 
 // ======================================================================
 // IMPLEMENTAÇÃO DA API DO SISTEMA DE ARQUIVOS
@@ -116,66 +131,112 @@ int fs_find_free_block() {
 /**
  * Cria um novo arquivo vazio no disco
  */
+// Cria um arquivo comum e engata na lista encadeada
 int fs_create(char *name) {
-    if (super_block.free_inodes == 0) return -1; // Erro: Sem Inodes livres
+    int parent_idx = fs_get_current_dir();
+    int current = (parent_idx == -1) ? root_first_child : super_block.inode_table[parent_idx].first_child;
+    int last_sibling = -1;
 
+    // 1. Busca Otimizada: Verifica se o nome já existe e encontra o último da fila
+    while (current != -1) {
+        if (fs_strcmp(super_block.inode_table[current].name, name) == 0) {
+            return -3; // Erro: Nome já em uso
+        }
+        last_sibling = current; // Guarda a referência do último irmão
+        current = super_block.inode_table[current].next_sibling;
+    }
 
-    if (fs_exists(name)) return -3; // Erro: Nome já em uso
-
-    // 1. Procura um Inode ("RG") que não esteja sendo usado
+    // 2. Busca Inode livre (Aqui continuamos varrendo a tabela até achar um espaço vazio)
+    int free_idx = -1;
     for (int i = 0; i < FS_MAX_FILES; i++) {
         if (super_block.inode_table[i].used == 0) {
-
-            // 2. Pede um bloco de dados na área de armazenamento
-            int free_block = fs_find_free_block();
-            if (free_block == -1) return -2; // Erro: Disco cheio (sem blocos)
-
-            // 3. Marca o bloco como OCUPADO no bitmap (Seta o bit para 1)
-            super_block.free_blocks_bitmap[free_block / 32] |= (1 << (free_block % 32));
-
-            // 4. Preenche os dados do Inode
-            fs_strcpy(super_block.inode_table[i].name, name);
-            super_block.inode_table[i].size = 0;
-            super_block.inode_table[i].start_block = free_block;
-            super_block.inode_table[i].type = 0;                         // Marca explicitamente como ARQUIVO
-            super_block.inode_table[i].parent_inode = current_dir_inode; // Registra em qual pasta estamos criando
-
-            // 5. Oficializa a criação!
-            super_block.inode_table[i].used = 1;
-            super_block.free_inodes--;
-
-            return 0; // Sucesso
+            free_idx = i;
+            break;
         }
     }
-    return -1;
+    
+    if (free_idx == -1) return -1; // Erro: Tabela cheia
+
+    // 3. Preenche a "Ficha Cadastral"
+    fs_strcpy(super_block.inode_table[free_idx].name, name);
+    super_block.inode_table[free_idx].used = 1;
+    super_block.inode_table[free_idx].type = 0; // 0 = ARQUIVO
+    super_block.inode_table[free_idx].parent_inode = parent_idx;
+    super_block.inode_table[free_idx].first_child = -1; // Arquivo não tem filhos
+    super_block.inode_table[free_idx].next_sibling = -1; // Ele é o novo último da fila
+    super_block.inode_table[free_idx].size = 0;
+    super_block.free_inodes--;
+
+    // 4. O ENGATE (Ligando os ponteiros)
+    if (last_sibling == -1) {
+        // Cenário A: A pasta estava vazia. Ele se torna o primeiro filho!
+        if (parent_idx == -1) {
+            root_first_child = free_idx;
+        } else {
+            super_block.inode_table[parent_idx].first_child = free_idx;
+        }
+    } else {
+        // Cenário B: A pasta já tinha arquivos. O último da fila agora aponta para o novo!
+        super_block.inode_table[last_sibling].next_sibling = free_idx;
+    }
+
+    return 0; // Sucesso
 }
 
 /**
  * Deleta um arquivo do disco
  */
 int fs_delete(char *name) {
-    // 1. Procura o arquivo pelo nome na tabela de Inodes
-    for (int i = 0; i < FS_MAX_FILES; i++) {
-        if (super_block.inode_table[i].used == 1 &&
-            super_block.inode_table[i].type == 0 && // Tem que ser arquivo
-	    super_block.inode_table[i].parent_inode == current_dir_inode && // Tem que estar na pasta atual
-	    fs_strcmp(super_block.inode_table[i].name, name) == 0)
-        {
+    int target_idx = -1;
+    int parent_idx = fs_get_current_dir(); // Pega a pasta atual
+    
+    // 1. Ponto de Partida: Quem é o primeiro filho da pasta atual?
+    int current = (parent_idx == -1) ? root_first_child : super_block.inode_table[parent_idx].first_child;
+    int prev = -1; // Guarda o irmão anterior para podermos "costurar"
 
-            // 2. Descobre qual bloco de dados era dono desse arquivo
-            int block = super_block.inode_table[i].start_block;
+    // 2. BUSCA OTIMIZADA: Navega apenas pelos irmãos (O(K) em vez de O(N))
+    while (current != -1) {
+        if (fs_strcmp(super_block.inode_table[current].name, name) == 0) {
+            target_idx = current;
+            break; // Achou!
+        }
+        prev = current;
+        current = super_block.inode_table[current].next_sibling;
+    }
 
-            // 3. Libera o bloco de dados no bitmap (Seta o bit de volta para 0)
-            super_block.free_blocks_bitmap[block / 32] &= ~(1 << (block % 32));
+    if (target_idx == -1) {
+        return -1; // Erro: Arquivo/Diretório não encontrado
+    }
 
-            // 4. "Apaga" o arquivo simplesmente dizendo que o Inode está livre
-            super_block.inode_table[i].used = 0;
-            super_block.free_inodes++;
-
-            return 0; // Sucesso
+    // 3. TRAVA DE SEGURANÇA: Se for diretório, está vazio?
+    if (super_block.inode_table[target_idx].type == 1) {
+        if (super_block.inode_table[target_idx].first_child != -1) {
+            return -2; // Erro: Diretório não está vazio
         }
     }
-    return -1; // Erro: Arquivo não encontrado
+
+    // --- 4. A COSTURA MÁGICA (Desvinculação) ---
+    if (prev == -1) {
+        // Cenário A: Ele era o PRIMEIRO filho da pasta.
+        // O Pai agora precisa apontar para o próximo irmão dele.
+        if (parent_idx == -1) {
+            root_first_child = super_block.inode_table[target_idx].next_sibling;
+        } else {
+            super_block.inode_table[parent_idx].first_child = super_block.inode_table[target_idx].next_sibling;
+        }
+    } else {
+        // Cenário B: Ele estava no MEIO ou no FIM da fila.
+        // O irmão anterior solta a mão dele e segura a mão do próximo.
+        super_block.inode_table[prev].next_sibling = super_block.inode_table[target_idx].next_sibling;
+    }
+
+    // 5. Limpeza da Ficha Cadastral (Inode)
+    super_block.inode_table[target_idx].used = 0;
+    super_block.inode_table[target_idx].first_child = -1;
+    super_block.inode_table[target_idx].next_sibling = -1;
+    super_block.free_inodes++;
+
+    return 0; // Sucesso
 }
 
 
@@ -214,27 +275,33 @@ int fs_rmdir(char *name) {
 /**
  * Percorre o disco e lista os arquivos ativos no Framebuffer
  */
+// Lista os arquivos e pastas do diretório atual (First-Child / Next-Sibling)
 void fs_list() {
-    /*    fb_write("\n Conteudo de ", 14);
+    int parent_idx = fs_get_current_dir();
+    
+    // Descobre quem é o primeiro item da pasta
+    int current = (parent_idx == -1) ? root_first_child : super_block.inode_table[parent_idx].first_child;
+    
+    int count = 0;
 
-        // Pega o nome do diretório atual ou "/"
-        char *dir_name = current_dir_inode == -1 ? "/" : super_block.inode_table[current_dir_inode].name;
-
-        // Imprime com o tamanho EXATO da string
-        fb_write(dir_name, strlen(dir_name));
-        fb_write(":\n", 2);
-    */
-
-    for (int i = 0; i < FS_MAX_FILES; i++) {
-        if (super_block.inode_table[i].used == 1 &&
-            super_block.inode_table[i].parent_inode == current_dir_inode) {
-
-            if (super_block.inode_table[i].type == 1) fb_write("[DIR] ", 6);
-            else fb_write("      ", 6);
-
-            fb_write(super_block.inode_table[i].name, strlen(super_block.inode_table[i].name));
-            fb_write("\n", 1);
+    // Navega pela corrente de irmãos
+    while (current != -1) {
+        if (super_block.inode_table[current].type == 1) {
+            fb_write("[DIR] ", 6); // Identifica que é uma pasta
+        }else{
+            fb_write("      ", 6); // Identifica que é um arquivo
         }
+        
+        fb_write(super_block.inode_table[current].name, strlen(super_block.inode_table[current].name));
+        fb_write("\n", 1);
+        
+        count++;
+        // Pula para o próximo irmão da fila
+        current = super_block.inode_table[current].next_sibling;
+    }
+
+    if (count == 0) {
+        fb_write("Diretorio vazio.\n", 17);
     }
 }
 
@@ -243,38 +310,31 @@ void fs_list() {
  * Escreve dados em um arquivo existente no disco virtual.
  * Retorna 0 em caso de sucesso, -1 se o arquivo for muito grande, -2 se não for encontrado.
  */
-int fs_write(char *name, char *buffer, unsigned int size) {
-    // 1. Proteção: Nosso FS básico aloca apenas 1 bloco por arquivo na criação.
-    if (size > FS_BLOCK_SIZE) {
-        return -1; // Erro: O dado excede o tamanho de 1 bloco (512 bytes)
+// Grava dados em um arquivo usando busca O(K)
+// Grava dados em um arquivo
+// Grava dados acessando o vetor contíguo de data_blocks
+int fs_write(char *name, char *content, unsigned int size) {
+    // 1. Busca Otimizada
+    int target_idx = fs_find_inode(name);
+
+    if (target_idx == -1) return -1; // Arquivo não encontrado
+    if (super_block.inode_table[target_idx].type == 1) return -2; // É um diretório
+
+    // 2. Descobre o bloco e calcula o Offset (Endereço inicial na zona de dados)
+    unsigned int block = super_block.inode_table[target_idx].start_block;
+    
+    // IMPORTANTE: Multiplicamos o bloco pelo tamanho do setor (ex: 512 bytes)
+    unsigned int offset = block * 512; 
+    
+    // 3. I/O REAL: Copia para o vetor unidimensional do Superbloco
+    for (unsigned int i = 0; i < size; i++) {
+        super_block.data_blocks[offset + i] = content[i]; 
     }
+    
+    // 4. Atualiza o tamanho do arquivo
+    super_block.inode_table[target_idx].size = size;
 
-    // 2. Busca sequencial na Tabela de Inodes
-    for (int i = 0; i < FS_MAX_FILES; i++) {
-        if (super_block.inode_table[i].used == 1 &&
-	    super_block.inode_table[i].type == 0 && // Tem que ser arquivo
-            super_block.inode_table[i].parent_inode == current_dir_inode && // Tem que estar no diretório atual
-            fs_strcmp(super_block.inode_table[i].name, name) == 0) {
-
-            // 3. Pegamos o número absoluto do bloco que foi reservado no fs_create
-            int block = super_block.inode_table[i].start_block;
-
-            // 4. A Matemática de Ponteiros: Calcula o endereço exato na RAM
-            unsigned char *dest = super_block.data_blocks + (block * FS_BLOCK_SIZE);
-
-            // 5. Transferência de Dados (Nosso memcpy artesanal)
-            for (unsigned int j = 0; j < size; j++) {
-                dest[j] = buffer[j];
-            }
-
-            // 6. Atualiza o metadado de tamanho no Inode
-            super_block.inode_table[i].size = size;
-
-            return 0; // Sucesso!
-        }
-    }
-
-    return -2; // Erro: Arquivo não encontrado
+    return 0; // Sucesso
 }
 
 
@@ -282,75 +342,100 @@ int fs_write(char *name, char *buffer, unsigned int size) {
  * Lê os dados de um arquivo e os copia para o buffer fornecido.
  * Retorna o número de bytes lidos, ou -1 se o arquivo não for encontrado.
  */
+// Lê o conteúdo de um arquivo usando busca O(K)
+// Lê o conteúdo de um arquivo
+// Lê o conteúdo acessando o vetor contíguo de data_blocks
 int fs_read(char *name, char *buffer) {
-    // 1. Busca o arquivo na Tabela de Inodes
-    for (int i = 0; i < FS_MAX_FILES; i++) {
-        if (super_block.inode_table[i].used == 1 &&
-	    super_block.inode_table[i].type == 0 && // Precisa ser arquivo
-	    super_block.inode_table[i].parent_inode == current_dir_inode && // Precisa estar no diretório atual
-            fs_strcmp(super_block.inode_table[i].name, name) == 0) {
+    int target_idx = fs_find_inode(name);
 
-            // 2. Coleta os metadados cruciais
-            int block = super_block.inode_table[i].start_block;
-            unsigned int file_size = super_block.inode_table[i].size;
+    if (target_idx == -1) return -1; 
+    if (super_block.inode_table[target_idx].type == 1) return -2; 
 
-            // 3. Calcula de onde vamos ler na RAM (Exatamente igual ao write)
-            unsigned char *src = super_block.data_blocks + (block * FS_BLOCK_SIZE);
-
-            // 4. Copia os bytes da Zona de Dados para o Buffer do usuário
-            for (unsigned int j = 0; j < file_size; j++) {
-                buffer[j] = src[j];
-            }
-
-            // 5. Adiciona o terminador nulo para podermos imprimir como string com segurança
-            buffer[file_size] = '\0';
-
-            return file_size; // Sucesso: retorna quantos bytes leu
-        }
+    unsigned int size = super_block.inode_table[target_idx].size;
+    unsigned int block = super_block.inode_table[target_idx].start_block;
+    
+    // Calcula o Offset na memória
+    unsigned int offset = block * 512; 
+    
+    // I/O REAL: Copia da zona de dados para o buffer da tela
+    for (unsigned int i = 0; i < size; i++) {
+        buffer[i] = super_block.data_blocks[offset + i]; 
     }
-
-    return -1; // Erro: Arquivo não encontrado
+    
+    buffer[size] = '\0'; 
+    return size; 
 }
 
 
+// Cria um diretório e engata na lista encadeada
 int fs_mkdir(char *name) {
-   if (fs_exists(name)) return -3;
+    int parent_idx = fs_get_current_dir();
+    int current = (parent_idx == -1) ? root_first_child : super_block.inode_table[parent_idx].first_child;
+    int last_sibling = -1;
 
+    while (current != -1) {
+        if (fs_strcmp(super_block.inode_table[current].name, name) == 0) {
+            return -3; 
+        }
+        last_sibling = current;
+        current = super_block.inode_table[current].next_sibling;
+    }
+
+    int free_idx = -1;
     for (int i = 0; i < FS_MAX_FILES; i++) {
         if (super_block.inode_table[i].used == 0) {
-            fs_strcpy(super_block.inode_table[i].name, name);
-            super_block.inode_table[i].used = 1;
-            super_block.inode_table[i].type = 1; // MARCA COMO PASTA
-            super_block.inode_table[i].parent_inode = current_dir_inode;
-            super_block.free_inodes--;
-            return 0;
+            free_idx = i;
+            break;
         }
     }
-    return -1;
+    
+    if (free_idx == -1) return -1;
+
+    fs_strcpy(super_block.inode_table[free_idx].name, name);
+    super_block.inode_table[free_idx].used = 1;
+    super_block.inode_table[free_idx].type = 1; // 1 = DIRETÓRIO (A única diferença!)
+    super_block.inode_table[free_idx].parent_inode = parent_idx;
+    super_block.inode_table[free_idx].first_child = -1; // Nasce vazio
+    super_block.inode_table[free_idx].next_sibling = -1;
+    super_block.free_inodes--;
+
+    // O Engate
+    if (last_sibling == -1) {
+        if (parent_idx == -1) root_first_child = free_idx;
+        else super_block.inode_table[parent_idx].first_child = free_idx;
+    } else {
+        super_block.inode_table[last_sibling].next_sibling = free_idx;
+    }
+
+    return 0;
 }
 
 
+// Muda o diretório atual usando busca otimizada O(K)
 int fs_cd(char *name) {
-    // Caso especial: "cd .." volta para o pai
+    // 1. Tratamento especial para voltar uma pasta
     if (fs_strcmp(name, "..") == 0) {
-        if (current_dir_inode != -1) {
-            current_dir_inode = super_block.inode_table[current_dir_inode].parent_inode;
+        int current = fs_get_current_dir();
+        if (current != -1) {
+            fs_set_current_dir(super_block.inode_table[current].parent_inode);
         }
-        return 0;
+        return 0; // Sucesso
     }
 
-    // Procura a pasta pelo nome dentro do diretório atual
-    for (int i = 0; i < FS_MAX_FILES; i++) {
-        if (super_block.inode_table[i].used == 1 &&
-            super_block.inode_table[i].type == 1 && // Deve ser pasta
-            super_block.inode_table[i].parent_inode == current_dir_inode &&
-            fs_strcmp(super_block.inode_table[i].name, name) == 0) {
+    // 2. Busca Otimizada pelo nome
+    int target_idx = fs_find_inode(name);
 
-            current_dir_inode = i; // Entra na pasta
-            return 0;
-        }
+    // 3. Validações
+    if (target_idx == -1) {
+        return -1; // Erro: Não encontrado
     }
-    return -1; // Pasta não encontrada
+    if (super_block.inode_table[target_idx].type != 1) {
+        return -2; // Erro: O alvo é um arquivo, não um diretório
+    }
+
+    // 4. Executa a mudança
+    fs_set_current_dir(target_idx);
+    return 0; // Sucesso
 }
 
 
