@@ -60,7 +60,7 @@ void shell_execute_command() {
         // O sucesso agora aceita o -1 (Raiz) e só rejeita o -2 (Erro de Rota)
         if (original != -2 && target[0] != '\0') {
             int res = fs_create(target);
-            if (res == 0) fb_write("Arquivo criado.\n", 16);
+            if (res == 0){}
             else if (res == -1) fb_write("Erro: Tabela cheia.\n", 20);
             else if (res == -3) fb_write("Erro: Nome ja em uso.\n", 22);
             
@@ -78,7 +78,7 @@ void shell_execute_command() {
         int original = utils_resolve_path(&command_buffer[3], &target);
 
         if (original != -2 && target[0] != '\0') {
-            if (fs_delete(target) == 0) fb_write("Arquivo removido.\n", 18);
+            if (fs_delete(target) == 0){} 
             else fb_write("Erro: arquivo nao encontrado.\n", 30);
             fs_set_current_dir(original);
         } else if (original == -2) {
@@ -86,29 +86,87 @@ void shell_execute_command() {
         }
     }
 
-    // COMANDO: mkdir (Criar deretório e entra nele)
+    // COMANDO: mkdir (Criar diretório em cascata e entrar automaticamente)
     else if (utils_strncmp(command_buffer, "mkdir ", 6) == 0) {
-	char *dirname = &command_buffer[6]; // Pega o nome da pasta
+        char *full_path = &command_buffer[6];
+        int original_inode = fs_get_current_dir(); // Salva o ponto de partida
+        int is_absolute = 0;
 
-        if (fs_mkdir(dirname) == 0) {
-            // Se a pasta foi criada com sucesso, navegamos para ela na mesma hora!
-            fs_cd(dirname);
-        } else {
-            fb_write("Erro ao criar o diretorio.\n", 27);
+        if (full_path[0] == '/') {
+            is_absolute = 1;
+            full_path++;
+            fs_set_current_dir(-1); // Vai para a raiz temporariamente
+        }
+
+        char *current_token = full_path;
+        int error = 0;
+
+        // LOOP DE CRIAÇÃO EM CASCATA (Pastas intermediárias)
+        for (int i = 0; full_path[i] != '\0'; i++) {
+            if (full_path[i] == '/') {
+                full_path[i] = '\0'; 
+
+                if (current_token[0] != '\0') {
+                    if (fs_cd(current_token) != 0) {
+                        if (fs_mkdir(current_token) == 0) {
+                            fs_cd(current_token); // Entra na pasta intermediária criada
+                        } else {
+                            error = 1; 
+                            break; // Falha grave, aborta o loop
+                        }
+                    }
+                }
+                current_token = &full_path[i + 1];
+            }
+        }
+
+        // EXECUÇÃO DA ÚLTIMA PASTA
+        if (!error && current_token[0] != '\0') {
+            int res = fs_mkdir(current_token);
+            if (res == 0) {
+                fs_cd(current_token); // <-- O SEGREDO: Entra na última pasta criada!
+                //fb_write("Diretorio criado e acessado.\n", 29);
+                // IMPORTANTE: Não chamamos fs_set_current_dir aqui. O usuário fica na nova pasta!
+            } else {
+                if (res == -3) fb_write("Erro: Nome ja em uso.\n", 22);
+                else fb_write("Erro ao criar diretorio.\n", 25);
+                
+                // Deu erro na última pasta? Puxamos o elástico de volta!
+                fs_set_current_dir(original_inode); 
+            }
+        } else if (error) {
+            fb_write("Erro ao criar arvore de diretorios.\n", 36);
+            // Deu erro no meio do caminho? Puxamos o elástico de volta!
+            fs_set_current_dir(original_inode); 
         }
     }
 
-    // COMANDO: rmdir (Remover diretório)
+    // COMANDO: rmdir (Remover diretório com suporte a caminhos)
     else if (utils_strncmp(command_buffer, "rmdir ", 6) == 0) {
-        char *dirname = &command_buffer[6];
-        int res = fs_rmdir(dirname);
+        char *target = 0;
+        
+        // 1. Usa o nosso resolvedor de rotas DRY
+        int original = utils_resolve_path(&command_buffer[6], &target);
 
-        if (res == 0) {
-            fb_write("Diretorio removido.\n", 20);
-        } else if (res == -2) {
-            fb_write("Erro: Diretorio nao esta vazio.\n", 32);
-        } else {
-            fb_write("Erro: Diretorio nao encontrado.\n", 32);
+        // 2. Verifica se o caminho é válido (Lembre-se: -2 é o nosso código de erro de rota!)
+        if (original != -2 && target[0] != '\0') {
+            
+            // 3. Executa a deleção no contexto correto
+            int res = fs_rmdir(target);
+            
+            if (res == 0) {
+                fb_write("Diretorio removido.\n", 20);
+            } else if (res == -2) { // O código de erro -2 do fs_rmdir significa pasta cheia
+                fb_write("Erro: Diretorio nao esta vazio.\n", 32);
+            } else {
+                fb_write("Erro: Diretorio nao encontrado.\n", 32);
+            }
+            
+            // 4. Restaura o usuário para a pasta de origem
+            fs_set_current_dir(original);
+            
+        } else if (original == -2) {
+            fb_write("Erro: Caminho invalido.\n", 24);
         }
     }
 
@@ -149,10 +207,8 @@ void shell_execute_command() {
     // COMANDO: write <caminho> <conteudo>
     else if (utils_strncmp(command_buffer, "write ", 6) == 0) {
         char *args = &command_buffer[6];
-        char *full_path = args;
         char *content = 0;
 
-        // 1. Separa o caminho do conteúdo (procurando o primeiro espaço)
         for (int i = 0; args[i] != '\0'; i++) {
             if (args[i] == ' ') {
                 args[i] = '\0';
@@ -162,115 +218,48 @@ void shell_execute_command() {
         }
 
         if (content != 0) {
-            char *dir_name = 0;
-            char *actual_file = full_path;
-            int is_absolute = 0;
+            char *target = 0;
+            int original = utils_resolve_path(args, &target);
 
-            // 2. Analisador de Caminho padrão
-            if (full_path[0] == '/') {
-                is_absolute = 1;
-                full_path++;
-                actual_file = full_path;
+            if (original != -2 && target[0] != '\0') {
+                unsigned int size = 0;
+                while (content[size] != '\0') size++;
+
+                if (fs_write(target, content, size) == 0){}
+                else fb_write("Erro na gravacao.\n", 18);
+                
+                fs_set_current_dir(original);
+            } else if (original == -2) {
+                fb_write("Erro: Caminho invalido.\n", 24);
             }
-
-            for (int i = 0; full_path[i] != '\0'; i++) {
-                if (full_path[i] == '/') {
-                    full_path[i] = '\0';
-                    dir_name = full_path;
-                    actual_file = &full_path[i + 1];
-                    break;
-                }
-            }
-
-            int original_inode = fs_get_current_dir();
-            if (is_absolute) fs_set_current_dir(-1); 
-
-            int path_error = 0;
-            if (dir_name != 0) {
-                if (fs_cd(dir_name) != 0) {
-                    fb_write("Erro: Diretorio do caminho nao encontrado.\n", 43);
-                    path_error = 1;
-                }
-            }
-
-            // 3. Executa a escrita no contexto correto
-            if (!path_error) {
-                // Descobre o tamanho do conteúdo contando os caracteres até o '\0'
-                unsigned int content_size = 0;
-                while (content[content_size] != '\0') {
-                    content_size++;
-                }
-
-                // Agora passamos os 3 argumentos exigidos pelo fs.h!
-                if (fs_write(actual_file, content, content_size) == 0) {
-                    fb_write("Conteudo gravado com sucesso.\n", 30);
-                } else {
-                    fb_write("Erro: Arquivo nao encontrado ou disco cheio.\n", 45);
-                }
-            }
-
-            fs_set_current_dir(original_inode);
         } else {
             fb_write("Uso: write <caminho> <conteudo>\n", 32);
         }
     }
 
-
-    
-
-
     // COMANDO: cat (Leitura com suporte a caminhos e quebra por vírgula)
     else if (utils_strncmp(command_buffer, "cat ", 4) == 0) {
-        char *full_path = &command_buffer[4];
-        char *dir_name = 0;
-        char *actual_file = full_path;
-        int is_absolute = 0;
+        char *target = 0;
+        int original = utils_resolve_path(&command_buffer[4], &target);
 
-        if (full_path[0] == '/') {
-            is_absolute = 1;
-            full_path++;
-            actual_file = full_path;
-        }
-
-        for (int i = 0; full_path[i] != '\0'; i++) {
-            if (full_path[i] == '/') {
-                full_path[i] = '\0';
-                dir_name = full_path;
-                actual_file = &full_path[i + 1];
-                break;
-            }
-        }
-
-        int original_inode = fs_get_current_dir();
-        if (is_absolute) fs_set_current_dir(-1); 
-
-        int path_error = 0;
-        if (dir_name != 0) {
-            if (fs_cd(dir_name) != 0) {
-                fb_write("Erro: Diretorio do caminho nao encontrado.\n", 43);
-                path_error = 1;
-            }
-        }
-
-        if (!path_error) {
+        if (original != -2 && target[0] != '\0') {
             char read_buf[512];
-            int bytes = fs_read(actual_file, read_buf);
+            int bytes = fs_read(target, read_buf);
             
             if (bytes >= 0) {
                 for (int j = 0; read_buf[j] != '\0'; j++) {
                     char c[2] = {read_buf[j], '\0'};
                     fb_write(c, 1);
-                    if (read_buf[j] == ',') {
-                        fb_write("\n", 1);
-                    }
+                    if (read_buf[j] == ',') fb_write("\n", 1);
                 }
                 fb_write("\n", 1); 
             } else {
                 fb_write("Erro: Arquivo nao encontrado.\n", 30);
             }
+            fs_set_current_dir(original);
+        } else if (original == -2) {
+            fb_write("Erro: Caminho invalido.\n", 24);
         }
-
-        fs_set_current_dir(original_inode);
     }
 
     // COMANDO: grep <padrao> <caminho/do/arquivo>
