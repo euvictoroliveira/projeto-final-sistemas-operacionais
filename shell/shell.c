@@ -1,7 +1,7 @@
 #include "shell.h"
-#include "fb.h"
-#include "utils.h"
-#include "fs.h"
+#include "drivers/fb.h"
+#include "utils/utils.h"
+#include "fs/fs.h"
 
 #define BUFFER_SIZE 256
 
@@ -289,7 +289,7 @@ void shell_execute_command() {
             char *target = 0;
             int original = utils_resolve_path(path_string, &target);
 
-            if (original != -1 && target[0] != '\0') {
+            if (original != -2 && target[0] != '\0') {
                 char file_buf[512];
                 int bytes = fs_read(target, file_buf);
 
@@ -333,13 +333,83 @@ void shell_execute_command() {
                     fb_write("Erro de leitura.\n", 17);
                 }
                 fs_set_current_dir(original);
-            } else if (original == -1) {
+            } else if (original == -2) {
                 fb_write("Erro: Caminho invalido.\n", 24);
             }
         } else {
             fb_write("Uso: grep [-i -v -c] <termo> <caminho>\n", 39);
         }
     }
+
+
+    // COMANDO: inodes (Exibe o endereço de memória da tabela de inodes)
+    else if (fs_strcmp(command_buffer, "inodes") == 0) {
+        // 1. Busca o endereço numérico no File System
+        unsigned int address = fs_get_inode_table_address();
+        
+        // 2. Converte para texto Hexadecimal
+        char hex_str[16];
+        utils_int_to_hex_string(address, hex_str);
+        
+        // 3. Imprime na tela com o prefixo '0x' padrão de endereços
+        fb_write("Endereco da Tabela de Inodes: 0x", 32);
+        
+        // Conta o tamanho dinâmico da string gerada
+        int len = 0;
+        while (hex_str[len] != '\0') len++;
+        
+        fb_write(hex_str, len);
+        fb_write("\n", 1);
+    }
+
+
+    // COMANDO: perf <termo> <caminho>
+    else if (utils_strncmp(command_buffer, "perf ", 5) == 0) {
+        char *args = &command_buffer[5];
+        char *search_term = args;
+        char *path = 0;
+
+        // Separa argumentos (termo e caminho)
+        for (int i = 0; search_term[i] != '\0'; i++) {
+            if (search_term[i] == ' ') {
+                search_term[i] = '\0';
+                path = &search_term[i + 1];
+                break;
+            }
+        }
+
+        if (path != 0) {
+            fb_write("Iniciando benchmark...\n", 24);
+
+            // --- INÍCIO DA MEDIÇÃO ---
+            unsigned long long t_start = utils_read_tsc();
+
+            // EXECUTAMOS A LÓGICA DO GREP (Exemplo)
+            char *target = 0;
+            int original = utils_resolve_path(path, &target);
+            
+            if (original != -2) {
+                char buf[512];
+                fs_read(target, buf);
+                utils_strstr(buf, search_term); // Busca sem imprimir para focar no custo CPU
+                fs_set_current_dir(original);
+            }
+
+            unsigned long long t_end = utils_read_tsc();
+            // --- FIM DA MEDIÇÃO ---
+
+            unsigned int total_cycles = (unsigned int)(t_end - t_start);
+
+            // Exibe o resultado
+            char num_str[20];
+            itoa(total_cycles, num_str, 10);
+            
+            fb_write("Ciclos de CPU gastos: ", 22);
+            fb_write(num_str, strlen(num_str));
+            fb_write("\n", 1);
+        }
+    }
+
 
     else {
         fb_write("Comando desconhecido: ", 22);

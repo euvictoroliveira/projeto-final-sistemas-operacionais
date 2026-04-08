@@ -3,7 +3,7 @@
 #include "io.h"
 #include "serial.h"
 #include "fb.h"
-#include "shell.h"
+#include "shell/shell.h"
 
 // Variável de estado: 0 = desligado, 1 = ligado
 static int caps_lock_active = 0;

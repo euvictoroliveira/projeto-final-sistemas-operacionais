@@ -1,6 +1,6 @@
 /* idt.c */
 #include "idt.h"
-#include "io.h"
+#include "drivers/io.h"
 
 /* Variáveis Globais */
 struct idt_entry idt[256]; // A tabela com 256 interrupções possíveis

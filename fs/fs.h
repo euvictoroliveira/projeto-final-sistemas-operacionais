@@ -2,9 +2,9 @@
 #define FS_H
 
 // Definições do tamanho do nosso "Disco"
-#define FS_MAX_FILES 256          // Limite de arquivos no nosso disco
-#define FS_BLOCK_SIZE 512        // Cada bloco de dados terá 512 bytes
-#define FS_MAX_BLOCKS 2048          // Total de blocos de dados no disco (128 KB de espaço)
+#define FS_MAX_FILES 256            // Limite de arquivos no nosso disco
+#define FS_BLOCK_SIZE 512           // Cada bloco de dados terá 512 bytes
+#define FS_MAX_BLOCKS 256          // Total de blocos de dados no disco (128 KB de espaço)
 
 // A fórmula mágica para arredondar para cima!
 #define BITMAP_SIZE ((FS_MAX_BLOCKS + 31) / 32)
@@ -15,6 +15,9 @@ typedef struct {
     unsigned int size;           // Tamanho real do arquivo em bytes
     unsigned int start_block;    // Índice do primeiro bloco de dados deste arquivo
     unsigned char used;          // Flag: 1 se o Inode está ocupado, 0 se está livre
+
+    int first_child;             // ID do primeiro item dentro desta pasta
+    int next_sibling;            // ID do próximo item que tem o mesmo pai que eu
 
     unsigned char type;       // 0 para ARQUIVO, 1 para DIRETÓRIO
     int parent_inode;         // Índice do Inode da pasta que contém este arquivo

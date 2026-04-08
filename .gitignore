@@ -1,17 +1,14 @@
-# Logs e saídas do emulador
-bochslog.txt
-com1.out
-
-# Arquivos compilados (Objetos)
+# Artefatos de Compilação (Ignora em qualquer pasta)
 *.o
-
-# Arquivos executáveis e binários
 *.elf
-program
-
-# Imagens de disco geradas
+*.bin
 *.iso
 
-# Arquivos temporários e backups de editores de texto
-*.save
-*~
+# Pasta de Build (Onde a mágica acontece agora)
+/build/
+/iso/boot/kernel.elf
+/iso/modules/
+
+# Logs do Emulador (Para o Git não rastrear suas sessões de teste)
+bochslog.txt
+com1.out

@@ -157,3 +157,43 @@ int utils_resolve_path(char *full_path, char **target_name) {
 
     return original_inode; // Sucesso! Retorna de onde viemos.
 }
+
+
+// Lê o contador de ciclos do processador (64 bits)
+unsigned long long utils_read_tsc() {
+    unsigned int lo, hi;
+    // Instrução rdtsc: carrega o contador em EDX:EAX
+    __asm__ __volatile__ ("rdtsc" : "=a" (lo), "=d" (hi));
+    return ((unsigned long long)hi << 32) | lo;
+}
+
+
+// Converte um número inteiro (endereço de memória) para uma string Hexadecimal
+void utils_int_to_hex_string(unsigned int num, char *str) {
+    if (num == 0) {
+        str[0] = '0';
+        str[1] = '\0';
+        return;
+    }
+
+    char hex_chars[] = "0123456789ABCDEF";
+    int i = 0;
+
+    // Extrai os dígitos hexadecimais
+    while (num > 0) {
+        str[i++] = hex_chars[num % 16];
+        num /= 16;
+    }
+    str[i] = '\0';
+
+    // Inverte a string (pois os dígitos saem de trás para frente)
+    int start = 0;
+    int end = i - 1;
+    while (start < end) {
+        char temp = str[start];
+        str[start] = str[end];
+        str[end] = temp;
+        start++;
+        end--;
+    }
+}
