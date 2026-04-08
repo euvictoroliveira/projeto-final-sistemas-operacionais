@@ -1,7 +1,7 @@
 #include "fs.h"
-#include "kheap.h"   // Onde mora o nosso kmalloc() do Capítulo 10
-#include "utils.h"   // Para usarmos o strlen, se necessário
-#include "fb.h"
+#include "mm/kheap.h"   // Onde mora o nosso kmalloc() do Capítulo 10
+#include "utils/utils.h"   // Para usarmos o strlen, se necessário
+#include "drivers/fb.h"
 
 // variável para rastrear onde o usuário está "pisando"
 static int current_dir_inode = -1; // -1 significa a RAIZ (Root)

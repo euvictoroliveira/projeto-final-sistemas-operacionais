@@ -1,7 +1,7 @@
 #include "shell.h"
-#include "fb.h"
-#include "utils.h"
-#include "fs.h"
+#include "drivers/fb.h"
+#include "utils/utils.h"
+#include "fs/fs.h"
 
 #define BUFFER_SIZE 256
 

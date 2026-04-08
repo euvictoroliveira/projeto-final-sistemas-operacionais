@@ -1,8 +1,8 @@
 #include "interrupts.h"
 #include "idt.h"    /* Para usar as definições do PIC (PIC1_PORT_A, etc.) */
-#include "io.h"     /* Para usar o inb() e outb() */
-#include "serial.h" /* Para usar o serial_write() */
-#include "keyboard.h"
+#include "drivers/io.h"     /* Para usar o inb() e outb() */
+#include "drivers/serial.h" /* Para usar o serial_write() */
+#include "drivers/keyboard.h"
 
 void pic_acknowledge(unsigned int interrupt) {
     /* Ignora se for interrupção da CPU (menor que 32) ou fora do intervalo */

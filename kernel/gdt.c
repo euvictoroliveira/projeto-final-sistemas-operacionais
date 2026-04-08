@@ -1,6 +1,6 @@
 /* gdt.c */
 #include "gdt.h"
-#include "serial.h"
+#include "drivers/serial.h"
 
 /* VARIÁVEIS GLOBAIS */
 

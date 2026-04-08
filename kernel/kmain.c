@@ -1,14 +1,14 @@
-#include "serial.h"
-#include "fb.h"
+#include "drivers/serial.h"
+#include "drivers/fb.h"
 #include "gdt.h"
 #include "idt.h"
-#include "multiboot.h"
-#include "utils.h"
-#include "pmm.h"
-#include "vmm.h"
-#include "kheap.h"
-#include "fs.h"
-#include "shell.h"
+#include "boot/multiboot.h"
+#include "utils/utils.h"
+#include "mm/pmm.h"
+#include "mm/vmm.h"
+#include "mm/kheap.h"
+#include "fs/fs.h"
+#include "shell/shell.h"
 
 /* Importando os símbolos gerados dinamicamente pelo Linker Script */
 extern char kernel_virtual_start[];
