@@ -157,3 +157,12 @@ int utils_resolve_path(char *full_path, char **target_name) {
 
     return original_inode; // Sucesso! Retorna de onde viemos.
 }
+
+
+// Lê o contador de ciclos do processador (64 bits)
+unsigned long long utils_read_tsc() {
+    unsigned int lo, hi;
+    // Instrução rdtsc: carrega o contador em EDX:EAX
+    __asm__ __volatile__ ("rdtsc" : "=a" (lo), "=d" (hi));
+    return ((unsigned long long)hi << 32) | lo;
+}
