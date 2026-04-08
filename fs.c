@@ -3,7 +3,8 @@
 #include "utils.h"   // Para usarmos o strlen, se necessário
 #include "fb.h"
 
-static int current_dir_inode;
+// variável para rastrear onde o usuário está "pisando"
+static int current_dir_inode = -1; // -1 significa a RAIZ (Root)
 
 // Buffer global estático para guardar o texto do caminho completo
 static char full_path_buffer[256];
@@ -41,6 +42,19 @@ void fs_strcat(char *dest, const char *src) {
     }
     *dest = '\0';
 }
+
+// Função auxiliar para evitar duplicatas
+int fs_exists(char *name) {
+    for (int i = 0; i < FS_MAX_FILES; i++) {
+        if (super_block.inode_table[i].used == 1 &&
+            super_block.inode_table[i].parent_inode == current_dir_inode &&
+            fs_strcmp(super_block.inode_table[i].name, name) == 0) {
+            return 1; // Já existe algo com esse nome aqui!
+        }
+    }
+    return 0;
+}
+
 
 // ======================================================================
 // IMPLEMENTAÇÃO DA API DO SISTEMA DE ARQUIVOS
@@ -104,6 +118,9 @@ int fs_find_free_block() {
  */
 int fs_create(char *name) {
     if (super_block.free_inodes == 0) return -1; // Erro: Sem Inodes livres
+
+
+    if (fs_exists(name)) return -3; // Erro: Nome já em uso
 
     // 1. Procura um Inode ("RG") que não esteja sendo usado
     for (int i = 0; i < FS_MAX_FILES; i++) {
@@ -198,15 +215,15 @@ int fs_rmdir(char *name) {
  * Percorre o disco e lista os arquivos ativos no Framebuffer
  */
 void fs_list() {
-/*    fb_write("\n Conteudo de ", 14);
+    /*    fb_write("\n Conteudo de ", 14);
 
-    // Pega o nome do diretório atual ou "/"
-    char *dir_name = current_dir_inode == -1 ? "/" : super_block.inode_table[current_dir_inode].name;
+        // Pega o nome do diretório atual ou "/"
+        char *dir_name = current_dir_inode == -1 ? "/" : super_block.inode_table[current_dir_inode].name;
 
-    // Imprime com o tamanho EXATO da string
-    fb_write(dir_name, strlen(dir_name));
-    fb_write(":\n", 2);
-*/
+        // Imprime com o tamanho EXATO da string
+        fb_write(dir_name, strlen(dir_name));
+        fb_write(":\n", 2);
+    */
 
     for (int i = 0; i < FS_MAX_FILES; i++) {
         if (super_block.inode_table[i].used == 1 &&
@@ -297,6 +314,8 @@ int fs_read(char *name, char *buffer) {
 
 
 int fs_mkdir(char *name) {
+   if (fs_exists(name)) return -3;
+
     for (int i = 0; i < FS_MAX_FILES; i++) {
         if (super_block.inode_table[i].used == 0) {
             fs_strcpy(super_block.inode_table[i].name, name);
@@ -366,4 +385,14 @@ char* fs_get_cwd_path() {
     }
 
     return full_path_buffer;
+}
+
+// Retorna o ID (Inode) do diretório atual
+int fs_get_current_dir() {
+    return current_dir_inode;
+}
+
+// Força o sistema a ir para um diretório específico instantaneamente
+void fs_set_current_dir(int inode) {
+    current_dir_inode = inode;
 }

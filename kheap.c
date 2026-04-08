@@ -4,26 +4,31 @@
 
 // Endereço Virtual onde o nosso Heap vai começar (3.25 GB)
 #define KHEAP_START 0xD0000000
-#define KHEAP_INITIAL_SIZE 4096 // Começamos com 1 página de estoque
+
+// 3 Megabytes de memória (2 * 1024 * 1024)
+#define KHEAP_INITIAL_SIZE 2097152
 
 // A nossa Lista Encadeada de blocos livres
 header_t *free_list = 0;
 
 void kheap_init() {
-    // 1. Pedimos a nossa primeira "caixa fechada" de 4 KB ao Síndico (PMM)
-    unsigned int phys_addr = pmm_alloc_frame();
+    // 1. Calcula quantas páginas de 4 KB precisamos para cobrir os 2 MB
+    // Matemática: 2097152 / 4096 = 512 páginas
+    unsigned int num_pages = KHEAP_INITIAL_SIZE / 4096;
 
-    // 2. Construímos a ponte virtual para ela usando a nossa engenheira (VMM)
-    // Damos permissão de leitura e escrita para o Kernel
-    vmm_map_page(KHEAP_START, phys_addr, VMM_PRESENT | VMM_WRITABLE);
+    // 2. Loop para alocar e mapear TODAS as 512 páginas contiguamente
+    for (unsigned int i = 0; i < num_pages; i++) {
+        // Pede uma "caixa física" ao PMM
+        unsigned int phys_addr = pmm_alloc_frame();
 
-    // 3. Pegamos essa página inteira e transformamos no nosso primeiro bloco livre gigante!
+        // Constrói a ponte virtual (VMM) colocando as páginas lado a lado
+        unsigned int virt_addr = KHEAP_START + (i * 4096);
+        vmm_map_page(virt_addr, phys_addr, VMM_PRESENT | VMM_WRITABLE);
+    }
+
+    // 3. Pegamos esse bloco gigante de 2 MB reais e damos para a free_list
     free_list = (header_t *) KHEAP_START;
-
-    // O tamanho do bloco é 4096 bytes inteiros
     free_list->size = KHEAP_INITIAL_SIZE;
-
-    // Como é o único bloco livre, não há próximo
     free_list->next = 0;
 }
 
