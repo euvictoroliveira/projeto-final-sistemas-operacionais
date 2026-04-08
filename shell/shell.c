@@ -289,7 +289,7 @@ void shell_execute_command() {
             char *target = 0;
             int original = utils_resolve_path(path_string, &target);
 
-            if (original != -1 && target[0] != '\0') {
+            if (original != -2 && target[0] != '\0') {
                 char file_buf[512];
                 int bytes = fs_read(target, file_buf);
 
@@ -333,7 +333,7 @@ void shell_execute_command() {
                     fb_write("Erro de leitura.\n", 17);
                 }
                 fs_set_current_dir(original);
-            } else if (original == -1) {
+            } else if (original == -2) {
                 fb_write("Erro: Caminho invalido.\n", 24);
             }
         } else {
